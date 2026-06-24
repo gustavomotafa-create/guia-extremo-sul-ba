@@ -26,3 +26,7 @@ Centralizar vagas de emprego, serviços locais, empresas, promoções e informa�
 ## Como abrir
 
 Abra o arquivo `index.html` no navegador.
+
+## Publicação
+
+O repositório inclui um workflow em `.github/workflows/pages.yml` para publicar o site estático no GitHub Pages a partir da branch `main`.
