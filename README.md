@@ -29,4 +29,14 @@ Abra o arquivo `index.html` no navegador.
 
 ## Publicação
 
-O repositório inclui um workflow em `.github/workflows/pages.yml` para publicar o site estático no GitHub Pages a partir da branch `main`.
+O site está pronto para publicação no GitHub Pages usando a opção **Deploy from a branch**.
+
+Configuração recomendada no GitHub:
+
+- Source: `Deploy from a branch`
+- Branch: `main`
+- Folder: `/ (root)`
+
+URL esperada após ativar:
+
+`https://gustavomotafa-create.github.io/guia-extremo-sul-ba/`
