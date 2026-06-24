@@ -190,8 +190,8 @@ function renderJobs() {
             <h3>${job.title}</h3>
             <p>${job.company}</p>
             <div class="job-meta">
-              <span>${job.city}${job.state ? `, ${job.state}` : ""}</span>
-              <span>${job.time}</span>
+              <span class="meta-item">${job.city}${job.state ? `, ${job.state}` : ""}</span>
+              <span class="meta-item">${job.time}</span>
             </div>
           </div>
           <div class="job-actions">

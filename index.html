@@ -18,42 +18,57 @@
   </head>
   <body>
     <header class="site-header">
-      <a class="brand" href="./index.html" aria-label="Girassol Vagas">
-        <img src="./assets/sunflower-logo.svg" alt="" />
-        <span>
-          <strong>Girassol</strong>
-          <small>Vagas</small>
-        </span>
-      </a>
+      <div class="header-shell">
+        <a class="brand" href="./index.html" aria-label="Girassol Vagas">
+          <span class="brand-icon">
+            <img src="./assets/sunflower-logo.svg" alt="" />
+          </span>
+          <span>
+            <strong>Girassol</strong>
+            <small>Vagas</small>
+          </span>
+        </a>
 
-      <nav class="main-nav" aria-label="Navegação principal">
-        <a href="./index.html">Início</a>
-        <a href="#vagas">Vagas</a>
-        <a href="#sobre">Sobre o Projeto</a>
-        <a href="#contato">Contato</a>
-      </nav>
+        <nav class="main-nav" aria-label="Navegação principal">
+          <a href="./index.html">Início</a>
+          <a href="#vagas">Vagas</a>
+          <a href="#sobre">Sobre o Projeto</a>
+          <a href="#contato">Contato</a>
+        </nav>
 
-      <div class="header-actions">
-        <a class="primary-button" href="./publicar-vaga/">+ Publicar Vaga</a>
-        <button class="sun-toggle" type="button" aria-label="Tema claro">
-          <span></span>
-        </button>
+        <div class="header-actions">
+          <a class="primary-button header-button" href="./publicar-vaga/">
+            <span class="button-plus">+</span>
+            Publicar Vaga
+          </a>
+          <button class="sun-toggle" type="button" aria-label="Tema claro">
+            <span></span>
+          </button>
+        </div>
       </div>
     </header>
 
     <main>
       <section class="hero-section">
-        <div class="hero-copy">
-          <h1>
-            Encontre oportunidades que fazem você
-            <span>florescer</span>
-          </h1>
-          <p>
-            Conectamos talentos às melhores oportunidades do Extremo Sul da Bahia.
-          </p>
-          <div class="hero-actions">
-            <a class="dark-button" href="#vagas">Ver Vagas</a>
-            <a class="outline-button" href="./publicar-vaga/">Quero Publicar uma Vaga</a>
+        <div class="hero-shell">
+          <div class="hero-copy">
+            <h1>
+              Encontre oportunidades que fazem você
+              <span>florescer</span>
+            </h1>
+            <p>
+              Conectamos talentos às melhores oportunidades do Extremo Sul da Bahia.
+            </p>
+            <div class="hero-actions">
+              <a class="dark-button" href="#vagas">
+                <span class="button-dot"></span>
+                Ver Vagas
+              </a>
+              <a class="outline-button" href="./publicar-vaga/">
+                <span class="small-sun"></span>
+                Quero Publicar uma Vaga
+              </a>
+            </div>
           </div>
         </div>
 
@@ -101,7 +116,10 @@
             </select>
           </label>
 
-          <button class="search-button" type="submit">Buscar Vagas</button>
+          <button class="search-button" type="submit">
+            <span class="search-lens"></span>
+            Buscar Vagas
+          </button>
 
           <button class="advanced-toggle" id="advancedToggle" type="button" aria-expanded="false">
             Busca Avançada
@@ -161,7 +179,9 @@
         <div class="jobs-main">
           <div class="section-title">
             <div>
-              <span class="section-icon">□</span>
+              <span class="section-icon">
+                <img src="./assets/sunflower-logo.svg" alt="" />
+              </span>
               <h2>Vagas Recentes</h2>
             </div>
             <label class="sort-select">
@@ -177,18 +197,23 @@
           <div class="job-list" id="jobList" aria-live="polite"></div>
 
           <article class="share-card">
-            <img src="./assets/sunflower-logo.svg" alt="" />
+            <div class="share-illustration">
+              <img src="./assets/sunflower-logo.svg" alt="" />
+            </div>
             <div>
               <h3>Tem uma vaga para compartilhar?</h3>
               <p>Ajude outras pessoas a encontrarem oportunidades. Publique sua vaga de forma rápida e gratuita.</p>
             </div>
-            <a class="primary-button" href="./publicar-vaga/">+ Publicar uma Vaga</a>
+            <a class="primary-button" href="./publicar-vaga/">
+              <span class="button-plus">+</span>
+              Publicar uma Vaga
+            </a>
           </article>
         </div>
 
         <aside class="filter-panel" aria-label="Filtros de vagas">
           <div class="filter-heading">
-            <h3>Filtros</h3>
+            <h3><span class="filter-icon"></span>Filtros</h3>
             <button id="clearFilters" type="button">Limpar filtros</button>
           </div>
 
@@ -214,6 +239,28 @@
             <label><input type="checkbox" data-filter="level" value="Júnior" /> Júnior</label>
             <label><input type="checkbox" data-filter="level" value="Pleno" /> Pleno</label>
             <label><input type="checkbox" data-filter="level" value="Sênior" /> Sênior</label>
+          </fieldset>
+
+          <fieldset>
+            <legend>Faixa Salarial</legend>
+            <div class="filter-salary-row">
+              <label>
+                De
+                <select>
+                  <option>Mínimo</option>
+                  <option>R$ 1.500</option>
+                  <option>R$ 2.500</option>
+                </select>
+              </label>
+              <label>
+                Até
+                <select>
+                  <option>Máximo</option>
+                  <option>R$ 6.000</option>
+                  <option>R$ 10.000+</option>
+                </select>
+              </label>
+            </div>
           </fieldset>
 
           <fieldset>
@@ -243,24 +290,32 @@
 
       <section class="value-strip" id="sobre">
         <article>
-          <span>100%</span>
-          <h3>Gratuito</h3>
-          <p>Todas as vagas são gratuitas para candidatos.</p>
+          <span class="value-icon">%</span>
+          <div>
+            <h3>100% Gratuito</h3>
+            <p>Todas as vagas são gratuitas para candidatos.</p>
+          </div>
         </article>
         <article>
-          <span>BA</span>
-          <h3>Focado na Região</h3>
-          <p>Oportunidades do Extremo Sul da Bahia.</p>
+          <span class="value-icon">BA</span>
+          <div>
+            <h3>Focado na Região</h3>
+            <p>Oportunidades do Extremo Sul da Bahia.</p>
+          </div>
         </article>
         <article>
-          <span>24h</span>
-          <h3>Atualizações Diárias</h3>
-          <p>Novas vagas publicadas todos os dias.</p>
+          <span class="value-icon">24</span>
+          <div>
+            <h3>Atualizações Diárias</h3>
+            <p>Novas vagas publicadas todos os dias.</p>
+          </div>
         </article>
         <article>
-          <span>+</span>
-          <h3>Para Todos</h3>
-          <p>De estagiários a profissionais experientes.</p>
+          <span class="value-icon">+</span>
+          <div>
+            <h3>Para Todos</h3>
+            <p>De estagiários a profissionais experientes.</p>
+          </div>
         </article>
       </section>
     </main>
@@ -269,7 +324,9 @@
       <div class="footer-grid">
         <div>
           <a class="brand footer-brand" href="./index.html">
-            <img src="./assets/sunflower-logo.svg" alt="" />
+            <span class="brand-icon">
+              <img src="./assets/sunflower-logo.svg" alt="" />
+            </span>
             <span>
               <strong>Girassol</strong>
               <small>Vagas</small>
