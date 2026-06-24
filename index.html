@@ -5,200 +5,314 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Guia regional de vagas, empresas, serviços e oportunidades no Extremo Sul da Bahia."
+      content="Girassol Vagas conecta candidatos e empresas com oportunidades no Extremo Sul da Bahia."
     />
-    <title>Guia Extremo Sul BA | Vagas, serviços e empresas da região</title>
+    <title>Girassol Vagas | Oportunidades do Extremo Sul da Bahia</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Pacifico&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <header class="site-header">
-      <a class="brand" href="#" aria-label="Guia Extremo Sul BA">
-        <span class="brand-mark">GES</span>
+      <a class="brand" href="./index.html" aria-label="Girassol Vagas">
+        <img src="./assets/sunflower-logo.svg" alt="" />
         <span>
-          <strong>Guia Extremo Sul</strong>
-          <small>Bahia</small>
+          <strong>Girassol</strong>
+          <small>Vagas</small>
         </span>
       </a>
 
       <nav class="main-nav" aria-label="Navegação principal">
+        <a href="./index.html">Início</a>
         <a href="#vagas">Vagas</a>
-        <a href="#servicos">Serviços</a>
-        <a href="#empresas">Empresas</a>
-        <a href="#anunciar">Anunciar</a>
+        <a href="#sobre">Sobre o Projeto</a>
+        <a href="#contato">Contato</a>
       </nav>
 
-      <a class="header-action" href="#anunciar">Publicar oportunidade</a>
+      <div class="header-actions">
+        <a class="primary-button" href="./publicar-vaga/">+ Publicar Vaga</a>
+        <button class="sun-toggle" type="button" aria-label="Tema claro">
+          <span></span>
+        </button>
+      </div>
     </header>
 
     <main>
-      <section class="search-shell" aria-labelledby="main-title">
-        <div class="search-copy">
-          <p class="eyebrow">Posto da Mata, Nova Viçosa, Teixeira de Freitas e região</p>
-          <h1 id="main-title">Encontre vagas, serviços e empresas do Extremo Sul da Bahia.</h1>
-          <p class="intro">
-            Um ponto único para consultar oportunidades locais, falar direto no WhatsApp
-            e descobrir negócios confiáveis perto de você.
+      <section class="hero-section">
+        <div class="hero-copy">
+          <h1>
+            Encontre oportunidades que fazem você
+            <span>florescer</span>
+          </h1>
+          <p>
+            Conectamos talentos às melhores oportunidades do Extremo Sul da Bahia.
           </p>
+          <div class="hero-actions">
+            <a class="dark-button" href="#vagas">Ver Vagas</a>
+            <a class="outline-button" href="./publicar-vaga/">Quero Publicar uma Vaga</a>
+          </div>
         </div>
 
-        <form class="search-panel" id="searchForm">
+        <div class="hero-photo" aria-hidden="true">
+          <img src="./assets/hero-sunflower.jpg" alt="" />
+        </div>
+      </section>
+
+      <section class="search-card" aria-label="Buscar vagas">
+        <form id="searchForm">
           <label>
             <span>O que você procura?</span>
             <input
-              id="searchInput"
+              id="keywordInput"
               type="search"
-              placeholder="Ex: auxiliar, frete, energia solar"
+              placeholder="Cargo, palavra-chave ou empresa..."
               autocomplete="off"
             />
           </label>
 
           <label>
-            <span>Cidade</span>
-            <select id="citySelect">
-              <option value="">Toda a região</option>
-              <option>Posto da Mata</option>
-              <option>Nova Viçosa</option>
-              <option>Teixeira de Freitas</option>
-              <option>Mucuri</option>
-              <option>Caravelas</option>
+            <span>Categoria</span>
+            <select id="categorySelect">
+              <option value="">Todas as categorias</option>
+              <option>Administração</option>
+              <option>Vendas</option>
+              <option>TI</option>
+              <option>Construção</option>
+              <option>Saúde</option>
+              <option>Educação</option>
+              <option>Marketing</option>
             </select>
           </label>
 
           <label>
-            <span>Categoria</span>
-            <select id="typeSelect">
-              <option value="">Tudo</option>
-              <option value="vagas">Vagas</option>
-              <option value="servicos">Serviços</option>
-              <option value="empresas">Empresas</option>
+            <span>Localização</span>
+            <select id="citySelect">
+              <option value="">Todas as cidades</option>
+              <option>Posto da Mata</option>
+              <option>Teixeira de Freitas</option>
+              <option>Nova Viçosa</option>
+              <option>Mucuri</option>
+              <option>São Mateus</option>
+              <option>Eunápolis</option>
             </select>
           </label>
 
-          <button type="submit">Buscar agora</button>
+          <button class="search-button" type="submit">Buscar Vagas</button>
+
+          <button class="advanced-toggle" id="advancedToggle" type="button" aria-expanded="false">
+            Busca Avançada
+          </button>
+
+          <div class="advanced-search" id="advancedSearch" hidden>
+            <fieldset>
+              <legend>Tipo de Contrato</legend>
+              <label><input type="checkbox" name="contract" value="CLT" /> CLT</label>
+              <label><input type="checkbox" name="contract" value="PJ" /> PJ</label>
+              <label><input type="checkbox" name="contract" value="Freelancer" /> Freelancer</label>
+              <label><input type="checkbox" name="contract" value="Estágio" /> Estágio</label>
+              <label><input type="checkbox" name="contract" value="Temporário" /> Temporário</label>
+            </fieldset>
+
+            <fieldset>
+              <legend>Modalidade</legend>
+              <label><input type="checkbox" name="mode" value="Presencial" /> Presencial</label>
+              <label><input type="checkbox" name="mode" value="Remoto" /> Remoto</label>
+              <label><input type="checkbox" name="mode" value="Híbrido" /> Híbrido</label>
+            </fieldset>
+
+            <fieldset>
+              <legend>Nível</legend>
+              <label><input type="checkbox" name="level" value="Estágio" /> Estágio</label>
+              <label><input type="checkbox" name="level" value="Júnior" /> Júnior</label>
+              <label><input type="checkbox" name="level" value="Pleno" /> Pleno</label>
+              <label><input type="checkbox" name="level" value="Sênior" /> Sênior</label>
+            </fieldset>
+
+            <fieldset class="salary-range">
+              <legend>Faixa Salarial</legend>
+              <label>
+                De
+                <select id="salaryMin">
+                  <option value="">Mínimo</option>
+                  <option value="1500">R$ 1.500</option>
+                  <option value="2500">R$ 2.500</option>
+                  <option value="5000">R$ 5.000</option>
+                </select>
+              </label>
+              <label>
+                Até
+                <select id="salaryMax">
+                  <option value="">Máximo</option>
+                  <option value="3000">R$ 3.000</option>
+                  <option value="6000">R$ 6.000</option>
+                  <option value="10000">R$ 10.000+</option>
+                </select>
+              </label>
+            </fieldset>
+          </div>
         </form>
-
-        <div class="trust-row" aria-label="Indicadores do portal">
-          <article>
-            <strong>42</strong>
-            <span>vagas mapeadas</span>
-          </article>
-          <article>
-            <strong>18</strong>
-            <span>serviços locais</span>
-          </article>
-          <article>
-            <strong>7</strong>
-            <span>cidades atendidas</span>
-          </article>
-        </div>
       </section>
 
-      <section class="quick-access" aria-label="Acessos rápidos">
-        <a href="#vagas">
-          <span>Vagas de emprego</span>
-          <strong>Ver oportunidades</strong>
-        </a>
-        <a href="#servicos">
-          <span>Serviços locais</span>
-          <strong>Encontrar profissional</strong>
-        </a>
-        <a href="#empresas">
-          <span>Guia comercial</span>
-          <strong>Conhecer empresas</strong>
-        </a>
-        <a href="#anunciar">
-          <span>Empresas</span>
-          <strong>Anunciar grátis</strong>
-        </a>
-      </section>
+      <section class="jobs-layout" id="vagas">
+        <div class="jobs-main">
+          <div class="section-title">
+            <div>
+              <span class="section-icon">□</span>
+              <h2>Vagas Recentes</h2>
+            </div>
+            <label class="sort-select">
+              <span>Ordenar por:</span>
+              <select id="sortSelect">
+                <option value="recentes">Mais recentes</option>
+                <option value="destaque">Destaques</option>
+                <option value="salario">Maior salário</option>
+              </select>
+            </label>
+          </div>
 
-      <section class="section-header" id="vagas">
-        <div>
-          <p class="eyebrow">Atualizado diariamente</p>
-          <h2>Vagas recentes</h2>
+          <div class="job-list" id="jobList" aria-live="polite"></div>
+
+          <article class="share-card">
+            <img src="./assets/sunflower-logo.svg" alt="" />
+            <div>
+              <h3>Tem uma vaga para compartilhar?</h3>
+              <p>Ajude outras pessoas a encontrarem oportunidades. Publique sua vaga de forma rápida e gratuita.</p>
+            </div>
+            <a class="primary-button" href="./publicar-vaga/">+ Publicar uma Vaga</a>
+          </article>
         </div>
-        <div class="filter-tabs" aria-label="Filtrar vagas">
-          <button class="tab is-active" data-filter="todas">Todas</button>
-          <button class="tab" data-filter="clt">CLT</button>
-          <button class="tab" data-filter="estagio">Estágio</button>
-          <button class="tab" data-filter="diaria">Diária</button>
-        </div>
-      </section>
 
-      <section class="content-grid">
-        <div class="list-panel" id="jobsList" aria-live="polite"></div>
+        <aside class="filter-panel" aria-label="Filtros de vagas">
+          <div class="filter-heading">
+            <h3>Filtros</h3>
+            <button id="clearFilters" type="button">Limpar filtros</button>
+          </div>
 
-        <aside class="side-panel">
-          <h3>Receba alertas no WhatsApp</h3>
-          <p>
-            Entre na lista de avisos e seja notificado quando novas vagas forem
-            publicadas na sua cidade.
-          </p>
-          <a class="solid-link" href="https://wa.me/5500000000000" target="_blank" rel="noreferrer">
-            Entrar na lista
-          </a>
+          <fieldset>
+            <legend>Tipo de Contrato</legend>
+            <label><input type="checkbox" data-filter="contract" value="CLT" /> CLT</label>
+            <label><input type="checkbox" data-filter="contract" value="PJ" /> PJ</label>
+            <label><input type="checkbox" data-filter="contract" value="Freelancer" /> Freelancer</label>
+            <label><input type="checkbox" data-filter="contract" value="Estágio" /> Estágio</label>
+            <label><input type="checkbox" data-filter="contract" value="Temporário" /> Temporário</label>
+          </fieldset>
+
+          <fieldset>
+            <legend>Modalidade</legend>
+            <label><input type="checkbox" data-filter="mode" value="Presencial" /> Presencial</label>
+            <label><input type="checkbox" data-filter="mode" value="Remoto" /> Remoto</label>
+            <label><input type="checkbox" data-filter="mode" value="Híbrido" /> Híbrido</label>
+          </fieldset>
+
+          <fieldset>
+            <legend>Nível de Experiência</legend>
+            <label><input type="checkbox" data-filter="level" value="Estágio" /> Estágio</label>
+            <label><input type="checkbox" data-filter="level" value="Júnior" /> Júnior</label>
+            <label><input type="checkbox" data-filter="level" value="Pleno" /> Pleno</label>
+            <label><input type="checkbox" data-filter="level" value="Sênior" /> Sênior</label>
+          </fieldset>
+
+          <fieldset>
+            <legend>Benefícios</legend>
+            <label><input type="checkbox" data-filter="benefits" value="Vale Alimentação" /> Vale Alimentação</label>
+            <label><input type="checkbox" data-filter="benefits" value="Vale Transporte" /> Vale Transporte</label>
+            <label><input type="checkbox" data-filter="benefits" value="Plano de Saúde" /> Plano de Saúde</label>
+            <label><input type="checkbox" data-filter="benefits" value="Home Office" /> Home Office</label>
+            <label><input type="checkbox" data-filter="benefits" value="Horário Flexível" /> Horário Flexível</label>
+          </fieldset>
+
+          <label class="filter-city">
+            <span>Cidades</span>
+            <select id="sideCitySelect">
+              <option value="">Todas as cidades</option>
+              <option>Posto da Mata</option>
+              <option>Teixeira de Freitas</option>
+              <option>Nova Viçosa</option>
+              <option>Mucuri</option>
+              <option>São Mateus</option>
+            </select>
+          </label>
+
+          <button class="primary-button full" id="applyFilters" type="button">Aplicar Filtros</button>
         </aside>
       </section>
 
-      <section class="section-header" id="servicos">
-        <div>
-          <p class="eyebrow">Contrate perto de casa</p>
-          <h2>Serviços mais procurados</h2>
-        </div>
-      </section>
-
-      <section class="service-grid" id="servicesList"></section>
-
-      <section class="section-header" id="empresas">
-        <div>
-          <p class="eyebrow">Comércio regional</p>
-          <h2>Empresas em destaque</h2>
-        </div>
-      </section>
-
-      <section class="company-grid" id="companiesList"></section>
-
-      <section class="opportunity-band">
-        <div>
-          <p class="eyebrow">Promoções e oportunidades</p>
-          <h2>Espaço para ofertas reais da região</h2>
-          <p>
-            Cupons, campanhas, eventos, cursos e divulgações patrocinadas podem
-            aparecer aqui com destaque por cidade e categoria.
-          </p>
-        </div>
-        <div class="promo-list" id="promotionsList"></div>
-      </section>
-
-      <section class="cta-section" id="anunciar">
-        <div>
-          <p class="eyebrow">Para empresas e profissionais</p>
-          <h2>Tem uma vaga, serviço ou promoção para divulgar?</h2>
-          <p>
-            Comece com publicação gratuita de vagas e opções de destaque para
-            aparecer melhor na sua cidade.
-          </p>
-        </div>
-        <div class="cta-actions">
-          <a class="solid-link" href="https://wa.me/5500000000000" target="_blank" rel="noreferrer">
-            Falar no WhatsApp
-          </a>
-          <a class="ghost-link" href="mailto:contato@guiaextremosulba.com.br">
-            Enviar por e-mail
-          </a>
-        </div>
+      <section class="value-strip" id="sobre">
+        <article>
+          <span>100%</span>
+          <h3>Gratuito</h3>
+          <p>Todas as vagas são gratuitas para candidatos.</p>
+        </article>
+        <article>
+          <span>BA</span>
+          <h3>Focado na Região</h3>
+          <p>Oportunidades do Extremo Sul da Bahia.</p>
+        </article>
+        <article>
+          <span>24h</span>
+          <h3>Atualizações Diárias</h3>
+          <p>Novas vagas publicadas todos os dias.</p>
+        </article>
+        <article>
+          <span>+</span>
+          <h3>Para Todos</h3>
+          <p>De estagiários a profissionais experientes.</p>
+        </article>
       </section>
     </main>
 
-    <footer class="site-footer">
-      <strong>Guia Extremo Sul BA</strong>
-      <span>Vagas, serviços e empresas locais em um só lugar.</span>
+    <footer class="site-footer" id="contato">
+      <div class="footer-grid">
+        <div>
+          <a class="brand footer-brand" href="./index.html">
+            <img src="./assets/sunflower-logo.svg" alt="" />
+            <span>
+              <strong>Girassol</strong>
+              <small>Vagas</small>
+            </span>
+          </a>
+          <p>As oportunidades do Extremo Sul florescem aqui.</p>
+          <div class="social-row" aria-label="Canais de contato">
+            <a href="https://wa.me/5500000000000" target="_blank" rel="noreferrer">W</a>
+            <a href="mailto:contato@girassolvagas.com.br">E</a>
+            <a href="./publicar-vaga/">+</a>
+          </div>
+        </div>
+
+        <nav aria-label="Navegação do rodapé">
+          <h3>Navegação</h3>
+          <a href="./index.html">Início</a>
+          <a href="#vagas">Vagas</a>
+          <a href="#sobre">Sobre o Projeto</a>
+          <a href="#contato">Contato</a>
+        </nav>
+
+        <nav aria-label="Para empresas">
+          <h3>Para Empresas</h3>
+          <a href="./publicar-vaga/">Publicar Vaga</a>
+          <a href="./admin/vagas/">Admin de Vagas</a>
+          <a href="mailto:contato@girassolvagas.com.br">Anunciar</a>
+        </nav>
+
+        <form class="newsletter">
+          <h3>Newsletter</h3>
+          <p>Receba as melhores vagas no seu e-mail.</p>
+          <label>
+            <span class="sr-only">Seu melhor e-mail</span>
+            <input type="email" placeholder="Seu melhor e-mail" />
+          </label>
+          <button type="submit">Enviar</button>
+        </form>
+      </div>
+
+      <div class="footer-bottom">
+        <span>© 2026 Girassol Vagas. Todos os direitos reservados.</span>
+        <span>Feito com sol para nossa região.</span>
+      </div>
     </footer>
 
     <script src="./app.js"></script>

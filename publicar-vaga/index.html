@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Publicar Vaga | Girassol Vagas</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Pacifico&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="../index.html" aria-label="Girassol Vagas">
+        <img src="../assets/sunflower-logo.svg" alt="" />
+        <span>
+          <strong>Girassol</strong>
+          <small>Vagas</small>
+        </span>
+      </a>
+      <nav class="main-nav" aria-label="Navegação principal">
+        <a href="../index.html">Início</a>
+        <a href="../index.html#vagas">Vagas</a>
+        <a href="../index.html#sobre">Sobre o Projeto</a>
+        <a href="../index.html#contato">Contato</a>
+      </nav>
+      <div class="header-actions">
+        <a class="primary-button" href="../admin/vagas/">Admin de Vagas</a>
+      </div>
+    </header>
+
+    <main class="page-shell">
+      <section class="page-hero">
+        <div>
+          <h1>Publicar Vaga</h1>
+          <p>
+            Cadastre a oportunidade da sua empresa. A vaga entra como pendente e
+            passa por aprovação manual antes de aparecer para os candidatos.
+          </p>
+        </div>
+        <a class="outline-button" href="../index.html">Voltar para vagas</a>
+      </section>
+
+      <form class="form-card" id="publishForm">
+        <label class="form-field">
+          Nome da empresa
+          <input name="company" required placeholder="Ex: Sunflower Tech" />
+        </label>
+
+        <label class="form-field">
+          Cargo
+          <input name="title" required placeholder="Ex: Atendente de Loja" />
+        </label>
+
+        <label class="form-field">
+          Salário
+          <input name="salary" placeholder="Ex: R$ 2.000 ou A combinar" />
+        </label>
+
+        <label class="form-field">
+          Cidade
+          <select name="city" required>
+            <option value="">Selecione</option>
+            <option>Posto da Mata</option>
+            <option>Teixeira de Freitas</option>
+            <option>Nova Viçosa</option>
+            <option>Mucuri</option>
+            <option>São Mateus</option>
+            <option>Eunápolis</option>
+          </select>
+        </label>
+
+        <label class="form-field">
+          WhatsApp
+          <input name="whatsapp" required placeholder="Ex: 73999999999" />
+        </label>
+
+        <label class="form-field">
+          Tipo de contrato
+          <select name="contract" required>
+            <option value="">Selecione</option>
+            <option>CLT</option>
+            <option>PJ</option>
+            <option>Freelancer</option>
+            <option>Estágio</option>
+            <option>Temporário</option>
+          </select>
+        </label>
+
+        <label class="form-field full-row">
+          Descrição da vaga
+          <textarea name="description" required placeholder="Conte as principais atividades, requisitos e como será o dia a dia."></textarea>
+        </label>
+
+        <label class="form-field full-row">
+          Benefícios
+          <textarea name="benefits" placeholder="Ex: Vale Transporte, Vale Alimentação, Plano de Saúde, Home Office"></textarea>
+        </label>
+
+        <div class="form-actions">
+          <p class="form-note">
+            MVP estático: este formulário salva a vaga no navegador para demonstrar o fluxo de aprovação.
+          </p>
+          <button class="primary-button" type="submit">Enviar para aprovação</button>
+        </div>
+      </form>
+
+      <div class="success-card" id="successCard">
+        <strong>Vaga enviada para aprovação.</strong>
+        <p>Abra o Admin de Vagas para revisar, aprovar ou rejeitar a publicação.</p>
+      </div>
+    </main>
+
+    <script src="./publicar-vaga.js"></script>
+  </body>
+</html>

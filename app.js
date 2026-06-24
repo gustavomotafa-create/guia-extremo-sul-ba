@@ -1,189 +1,204 @@
 const jobs = [
   {
-    title: "Auxiliar Administrativo",
-    company: "Mercado Central",
-    city: "Posto da Mata",
-    type: "CLT",
-    mode: "Presencial",
-    posted: "Hoje",
-    description: "Atendimento, organização de documentos e apoio ao setor financeiro.",
-    tags: ["nova", "clt"],
-  },
-  {
-    title: "Atendente de Loja",
-    company: "Drogaria Popular",
+    title: "Desenvolvedor(a) Front-end",
+    company: "Sunflower Tech",
     city: "Teixeira de Freitas",
-    type: "CLT",
+    state: "BA",
+    time: "Publicado há 2 horas",
+    category: "TI",
+    contract: "Freelancer",
     mode: "Presencial",
-    posted: "Hoje",
-    description: "Vaga para atendimento ao cliente, reposição de produtos e caixa.",
-    tags: ["urgente", "clt"],
+    level: "Pleno",
+    salary: 6500,
+    benefits: ["Home Office", "Horário Flexível"],
+    tags: ["Destaque", "Presencial"],
+    mark: "light",
   },
   {
-    title: "Estágio em Marketing",
-    company: "Sunflower Solutions",
-    city: "Nova Viçosa",
-    type: "Estágio",
+    title: "Designer Gráfico",
+    company: "Agência Girassol",
+    city: "Remoto",
+    state: "",
+    time: "Publicado há 5 horas",
+    category: "Marketing",
+    contract: "Freelancer",
+    mode: "Remoto",
+    level: "Júnior",
+    salary: 3200,
+    benefits: ["Home Office"],
+    tags: ["Remoto", "Freelancer"],
+    mark: "dark",
+  },
+  {
+    title: "Assistente Administrativo",
+    company: "Comércio Bom Preço",
+    city: "Eunápolis",
+    state: "BA",
+    time: "Publicado há 1 dia",
+    category: "Administração",
+    contract: "CLT",
+    mode: "Presencial",
+    level: "Júnior",
+    salary: 2100,
+    benefits: ["Vale Alimentação", "Vale Transporte"],
+    tags: ["Presencial"],
+    mark: "light",
+  },
+  {
+    title: "Analista de Marketing",
+    company: "Sunflower Marketing",
+    city: "Teixeira de Freitas",
+    state: "BA",
+    time: "Publicado há 1 dia",
+    category: "Marketing",
+    contract: "CLT",
     mode: "Híbrido",
-    posted: "Ontem",
-    description: "Apoio em redes sociais, criação de conteúdo e atendimento a clientes locais.",
-    tags: ["estagio"],
+    level: "Pleno",
+    salary: 4300,
+    benefits: ["Vale Alimentação", "Plano de Saúde", "Home Office"],
+    tags: ["Híbrido", "CLT"],
+    mark: "dark",
   },
   {
-    title: "Ajudante de Carga e Descarga",
-    company: "Transportes Costa Sul",
-    city: "Mucuri",
-    type: "Diária",
-    mode: "Presencial",
-    posted: "Ontem",
-    description: "Serviço por diária para apoio em entregas na região.",
-    tags: ["diaria", "urgente"],
-  },
-  {
-    title: "Vendedor Externo",
-    company: "Conecta Fibra",
-    city: "Teixeira de Freitas",
-    type: "PJ",
-    mode: "Rua",
-    posted: "2 dias atrás",
-    description: "Prospecção de clientes e venda de planos de internet.",
-    tags: ["pj"],
-  },
-];
-
-const services = [
-  {
-    title: "Fretes e pequenas mudanças",
-    city: "Posto da Mata",
-    description: "Carretos rápidos para casas, lojas e entregas comerciais.",
-    leads: "12 profissionais",
-  },
-  {
-    title: "Manutenção de ar-condicionado",
-    city: "Teixeira de Freitas",
-    description: "Instalação, limpeza e reparo com atendimento agendado.",
-    leads: "8 profissionais",
-  },
-  {
-    title: "Energia solar",
+    title: "Técnico em Enfermagem",
+    company: "Clínica Vida Sul",
     city: "Nova Viçosa",
-    description: "Orçamento para residências, fazendas e comércios.",
-    leads: "5 empresas",
-  },
-  {
-    title: "Cursos profissionalizantes",
-    city: "Região",
-    description: "Capacitação para atendimento, vendas, informática e gestão.",
-    leads: "6 opções",
-  },
-];
-
-const companies = [
-  {
-    name: "Mercado Central",
-    initials: "MC",
-    category: "Supermercado",
-    city: "Posto da Mata",
-    description: "Vagas, ofertas semanais e atendimento para moradores da região.",
-  },
-  {
-    name: "Conecta Fibra",
-    initials: "CF",
-    category: "Internet",
-    city: "Teixeira de Freitas",
-    description: "Planos residenciais e empresariais com suporte local.",
-  },
-  {
-    name: "Clínica Vida Sul",
-    initials: "VS",
+    state: "BA",
+    time: "Publicado há 2 dias",
     category: "Saúde",
-    city: "Nova Viçosa",
-    description: "Especialidades médicas, exames e campanhas de atendimento.",
+    contract: "CLT",
+    mode: "Presencial",
+    level: "Júnior",
+    salary: 2800,
+    benefits: ["Vale Transporte", "Plano de Saúde"],
+    tags: ["Presencial", "CLT"],
+    mark: "light",
   },
 ];
 
-const promotions = [
-  {
-    title: "Banner de lançamento",
-    text: "Espaço reservado para empresas patrocinadas por cidade.",
-  },
-  {
-    title: "Curso em destaque",
-    text: "Divulgação de turmas, eventos e capacitações profissionais.",
-  },
-  {
-    title: "Oferta local",
-    text: "Promoções com validade, WhatsApp direto e cidade visível.",
-  },
-];
+const state = {
+  advancedOpen: false,
+};
 
-const jobsList = document.querySelector("#jobsList");
-const servicesList = document.querySelector("#servicesList");
-const companiesList = document.querySelector("#companiesList");
-const promotionsList = document.querySelector("#promotionsList");
-const searchForm = document.querySelector("#searchForm");
-const searchInput = document.querySelector("#searchInput");
+const keywordInput = document.querySelector("#keywordInput");
+const categorySelect = document.querySelector("#categorySelect");
 const citySelect = document.querySelector("#citySelect");
-const typeSelect = document.querySelector("#typeSelect");
-const tabs = document.querySelectorAll(".tab");
-
-let activeJobFilter = "todas";
+const sideCitySelect = document.querySelector("#sideCitySelect");
+const sortSelect = document.querySelector("#sortSelect");
+const searchForm = document.querySelector("#searchForm");
+const advancedToggle = document.querySelector("#advancedToggle");
+const advancedSearch = document.querySelector("#advancedSearch");
+const clearFilters = document.querySelector("#clearFilters");
+const applyFilters = document.querySelector("#applyFilters");
+const jobList = document.querySelector("#jobList");
 
 function normalize(value) {
-  return value
-    .toString()
+  return String(value || "")
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
 }
 
-function getBadge(tags) {
-  if (tags.includes("urgente")) return '<span class="badge hot">Urgente</span>';
-  if (tags.includes("nova")) return '<span class="badge">Nova</span>';
-  return '<span class="badge">Verificada</span>';
+function checkedValues(selector) {
+  return [...document.querySelectorAll(`${selector}:checked`)].map((input) => input.value);
 }
 
-function renderJobs(items = jobs) {
-  const query = normalize(searchInput.value.trim());
-  const city = normalize(citySelect.value);
-  const selectedType = normalize(typeSelect.value);
+function hasAnyValue(values, current) {
+  return !values.length || values.includes(current);
+}
 
-  const filtered = items.filter((job) => {
-    const haystack = normalize(`${job.title} ${job.company} ${job.city} ${job.type} ${job.description}`);
-    const matchesQuery = !query || haystack.includes(query);
-    const matchesCity = !city || normalize(job.city).includes(city);
-    const matchesSearchType = !selectedType || selectedType === "vagas";
-    const matchesTab = activeJobFilter === "todas" || job.tags.includes(activeJobFilter);
+function hasAnyBenefit(values, benefits) {
+  return !values.length || values.some((value) => benefits.includes(value));
+}
 
-    return matchesQuery && matchesCity && matchesSearchType && matchesTab;
+function tagClass(tag) {
+  const value = normalize(tag);
+  if (value.includes("remoto")) return "remote";
+  if (value.includes("clt") || value.includes("freelancer")) return "green";
+  if (value.includes("hibrido")) return "blue";
+  return "";
+}
+
+function getFilteredJobs() {
+  const keyword = normalize(keywordInput.value);
+  const category = categorySelect.value;
+  const city = citySelect.value || sideCitySelect.value;
+  const contracts = checkedValues("[data-filter='contract']");
+  const modes = checkedValues("[data-filter='mode']");
+  const levels = checkedValues("[data-filter='level']");
+  const benefits = checkedValues("[data-filter='benefits']");
+
+  const advancedContracts = checkedValues("[name='contract']");
+  const advancedModes = checkedValues("[name='mode']");
+  const advancedLevels = checkedValues("[name='level']");
+  const minSalary = Number(document.querySelector("#salaryMin").value || 0);
+  const maxSalary = Number(document.querySelector("#salaryMax").value || 999999);
+
+  let filtered = jobs.filter((job) => {
+    const haystack = normalize(`${job.title} ${job.company} ${job.city} ${job.category}`);
+    const matchesKeyword = !keyword || haystack.includes(keyword);
+    const matchesCategory = !category || job.category === category;
+    const matchesCity = !city || job.city === city;
+    const matchesContracts = hasAnyValue([...contracts, ...advancedContracts], job.contract);
+    const matchesModes = hasAnyValue([...modes, ...advancedModes], job.mode);
+    const matchesLevels = hasAnyValue([...levels, ...advancedLevels], job.level);
+    const matchesBenefits = hasAnyBenefit(benefits, job.benefits);
+    const matchesSalary = job.salary >= minSalary && job.salary <= maxSalary;
+
+    return (
+      matchesKeyword &&
+      matchesCategory &&
+      matchesCity &&
+      matchesContracts &&
+      matchesModes &&
+      matchesLevels &&
+      matchesBenefits &&
+      matchesSalary
+    );
   });
 
+  if (sortSelect.value === "salario") {
+    filtered = filtered.sort((a, b) => b.salary - a.salary);
+  }
+
+  if (sortSelect.value === "destaque") {
+    filtered = filtered.sort((a, b) => Number(b.tags.includes("Destaque")) - Number(a.tags.includes("Destaque")));
+  }
+
+  return filtered;
+}
+
+function renderJobs() {
+  const filtered = getFilteredJobs();
+
   if (!filtered.length) {
-    jobsList.innerHTML = '<div class="empty-state">Nenhuma vaga encontrada com esses filtros.</div>';
+    jobList.innerHTML = '<div class="empty-state">Nenhuma vaga encontrada com esses filtros.</div>';
     return;
   }
 
-  jobsList.innerHTML = filtered
+  jobList.innerHTML = filtered
     .map(
       (job) => `
         <article class="job-card">
+          <div class="company-mark ${job.mark === "dark" ? "dark" : ""}">
+            <img src="./assets/sunflower-logo.svg" alt="" />
+          </div>
           <div>
-            ${getBadge(job.tags)}
-            <h3>${job.title}</h3>
-            <div class="job-meta">
-              <span>${job.company}</span>
-              <span>${job.city}</span>
-              <span>${job.type}</span>
-              <span>${job.mode}</span>
-              <span>${job.posted}</span>
+            <div class="job-tags">
+              ${job.tags.map((tag) => `<span class="tag ${tagClass(tag)}">${tag}</span>`).join("")}
             </div>
-            <p>${job.description}</p>
+            <h3>${job.title}</h3>
+            <p>${job.company}</p>
+            <div class="job-meta">
+              <span>${job.city}${job.state ? `, ${job.state}` : ""}</span>
+              <span>${job.time}</span>
+            </div>
           </div>
           <div class="job-actions">
-            <a class="whatsapp-link" href="https://wa.me/5500000000000" target="_blank" rel="noreferrer">
-              Candidatar
-            </a>
-            <a class="details-link" href="#anunciar">Detalhes</a>
+            <a class="details-button" href="https://wa.me/5500000000000?text=Tenho%20interesse%20na%20vaga%20${encodeURIComponent(
+              job.title,
+            )}" target="_blank" rel="noreferrer">Ver Detalhes</a>
+            <button class="save-button" type="button" aria-label="Salvar vaga">□</button>
           </div>
         </article>
       `,
@@ -191,61 +206,13 @@ function renderJobs(items = jobs) {
     .join("");
 }
 
-function renderServices() {
-  servicesList.innerHTML = services
-    .map(
-      (service) => `
-        <article class="service-card">
-          <span class="verified">${service.city}</span>
-          <h3>${service.title}</h3>
-          <p>${service.description}</p>
-          <strong>${service.leads}</strong>
-        </article>
-      `,
-    )
-    .join("");
+function syncCityFilters(source) {
+  if (source === "top") {
+    sideCitySelect.value = citySelect.value;
+  } else {
+    citySelect.value = sideCitySelect.value;
+  }
 }
-
-function renderCompanies() {
-  companiesList.innerHTML = companies
-    .map(
-      (company) => `
-        <article class="company-card">
-          <span class="company-logo">${company.initials}</span>
-          <h3>${company.name}</h3>
-          <div class="card-meta">
-            <span>${company.category}</span>
-            <span>${company.city}</span>
-            <span>Verificada</span>
-          </div>
-          <p>${company.description}</p>
-        </article>
-      `,
-    )
-    .join("");
-}
-
-function renderPromotions() {
-  promotionsList.innerHTML = promotions
-    .map(
-      (promotion) => `
-        <article class="promo-card">
-          <strong>${promotion.title}</strong>
-          <span>${promotion.text}</span>
-        </article>
-      `,
-    )
-    .join("");
-}
-
-tabs.forEach((tab) => {
-  tab.addEventListener("click", () => {
-    tabs.forEach((item) => item.classList.remove("is-active"));
-    tab.classList.add("is-active");
-    activeJobFilter = tab.dataset.filter;
-    renderJobs();
-  });
-});
 
 searchForm.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -253,11 +220,37 @@ searchForm.addEventListener("submit", (event) => {
   document.querySelector("#vagas").scrollIntoView({ behavior: "smooth", block: "start" });
 });
 
-[searchInput, citySelect, typeSelect].forEach((field) => {
+advancedToggle.addEventListener("click", () => {
+  state.advancedOpen = !state.advancedOpen;
+  advancedSearch.hidden = !state.advancedOpen;
+  advancedToggle.setAttribute("aria-expanded", String(state.advancedOpen));
+});
+
+[keywordInput, categorySelect, sortSelect].forEach((field) => field.addEventListener("input", renderJobs));
+
+citySelect.addEventListener("input", () => {
+  syncCityFilters("top");
+  renderJobs();
+});
+
+sideCitySelect.addEventListener("input", () => {
+  syncCityFilters("side");
+  renderJobs();
+});
+
+[...document.querySelectorAll("input[type='checkbox'], #salaryMin, #salaryMax")].forEach((field) => {
   field.addEventListener("input", renderJobs);
 });
 
+applyFilters.addEventListener("click", renderJobs);
+
+clearFilters.addEventListener("click", () => {
+  document.querySelectorAll(".filter-panel input[type='checkbox']").forEach((input) => {
+    input.checked = false;
+  });
+  sideCitySelect.value = "";
+  citySelect.value = "";
+  renderJobs();
+});
+
 renderJobs();
-renderServices();
-renderCompanies();
-renderPromotions();

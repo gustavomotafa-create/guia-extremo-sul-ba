@@ -1,27 +1,28 @@
-# Guia Extremo Sul BA
+# Girassol Vagas
 
-Plataforma regional para conectar moradores, empresas e oportunidades no Extremo Sul da Bahia.
+Plataforma regional para conectar candidatos, empresas e oportunidades no Extremo Sul da Bahia.
 
 ## Objetivo
 
-Centralizar vagas de emprego, serviços locais, empresas, promoções e informações úteis em uma experiência simples, rápida e acessível para cidades como Posto da Mata, Nova Viçosa, Teixeira de Freitas, Mucuri e região.
+Centralizar vagas de emprego e facilitar a publicação de oportunidades por empresas da região, com identidade visual inspirada em girassóis e no clima quente do Extremo Sul da Bahia.
 
 ## MVP atual
 
-- Página inicial com busca por termo, cidade e categoria.
-- Lista de vagas recentes com filtros por tipo.
-- Cards de serviços mais procurados.
-- Empresas em destaque.
-- Espaço para promoções e anúncios.
-- Chamadas para publicação de oportunidades via WhatsApp ou e-mail.
+- Página inicial com hero visual de girassol.
+- Busca por cargo, palavra-chave, empresa, categoria e cidade.
+- Busca avançada por contrato, modalidade, nível e faixa salarial.
+- Lista de vagas recentes com cards, tags e botão de detalhes.
+- Filtro lateral por contrato, modalidade, experiência, benefícios e cidade.
+- Página `publicar-vaga/` com formulário para empresas.
+- Página `admin/vagas/` simulando aprovação manual.
 
 ## Próximos passos sugeridos
 
-1. Definir nome final e domínio.
-2. Trocar dados simulados por conteúdo real.
-3. Criar painel administrativo para publicar vagas e empresas.
-4. Adicionar banco de dados e autenticação.
-5. Preparar versão mobile/app com notificações.
+1. Conectar o formulário a um backend real.
+2. Criar autenticação para empresas.
+3. Persistir vagas em banco de dados.
+4. Transformar o admin estático em painel real.
+5. Preparar alertas por WhatsApp/e-mail.
 
 ## Como abrir
 
