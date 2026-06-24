@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Guia regional de vagas, empresas, serviços e oportunidades no Extremo Sul da Bahia."
+    />
+    <title>Guia Extremo Sul BA | Vagas, serviços e empresas da região</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="#" aria-label="Guia Extremo Sul BA">
+        <span class="brand-mark">GES</span>
+        <span>
+          <strong>Guia Extremo Sul</strong>
+          <small>Bahia</small>
+        </span>
+      </a>
+
+      <nav class="main-nav" aria-label="Navegação principal">
+        <a href="#vagas">Vagas</a>
+        <a href="#servicos">Serviços</a>
+        <a href="#empresas">Empresas</a>
+        <a href="#anunciar">Anunciar</a>
+      </nav>
+
+      <a class="header-action" href="#anunciar">Publicar oportunidade</a>
+    </header>
+
+    <main>
+      <section class="search-shell" aria-labelledby="main-title">
+        <div class="search-copy">
+          <p class="eyebrow">Posto da Mata, Nova Viçosa, Teixeira de Freitas e região</p>
+          <h1 id="main-title">Encontre vagas, serviços e empresas do Extremo Sul da Bahia.</h1>
+          <p class="intro">
+            Um ponto único para consultar oportunidades locais, falar direto no WhatsApp
+            e descobrir negócios confiáveis perto de você.
+          </p>
+        </div>
+
+        <form class="search-panel" id="searchForm">
+          <label>
+            <span>O que você procura?</span>
+            <input
+              id="searchInput"
+              type="search"
+              placeholder="Ex: auxiliar, frete, energia solar"
+              autocomplete="off"
+            />
+          </label>
+
+          <label>
+            <span>Cidade</span>
+            <select id="citySelect">
+              <option value="">Toda a região</option>
+              <option>Posto da Mata</option>
+              <option>Nova Viçosa</option>
+              <option>Teixeira de Freitas</option>
+              <option>Mucuri</option>
+              <option>Caravelas</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Categoria</span>
+            <select id="typeSelect">
+              <option value="">Tudo</option>
+              <option value="vagas">Vagas</option>
+              <option value="servicos">Serviços</option>
+              <option value="empresas">Empresas</option>
+            </select>
+          </label>
+
+          <button type="submit">Buscar agora</button>
+        </form>
+
+        <div class="trust-row" aria-label="Indicadores do portal">
+          <article>
+            <strong>42</strong>
+            <span>vagas mapeadas</span>
+          </article>
+          <article>
+            <strong>18</strong>
+            <span>serviços locais</span>
+          </article>
+          <article>
+            <strong>7</strong>
+            <span>cidades atendidas</span>
+          </article>
+        </div>
+      </section>
+
+      <section class="quick-access" aria-label="Acessos rápidos">
+        <a href="#vagas">
+          <span>Vagas de emprego</span>
+          <strong>Ver oportunidades</strong>
+        </a>
+        <a href="#servicos">
+          <span>Serviços locais</span>
+          <strong>Encontrar profissional</strong>
+        </a>
+        <a href="#empresas">
+          <span>Guia comercial</span>
+          <strong>Conhecer empresas</strong>
+        </a>
+        <a href="#anunciar">
+          <span>Empresas</span>
+          <strong>Anunciar grátis</strong>
+        </a>
+      </section>
+
+      <section class="section-header" id="vagas">
+        <div>
+          <p class="eyebrow">Atualizado diariamente</p>
+          <h2>Vagas recentes</h2>
+        </div>
+        <div class="filter-tabs" aria-label="Filtrar vagas">
+          <button class="tab is-active" data-filter="todas">Todas</button>
+          <button class="tab" data-filter="clt">CLT</button>
+          <button class="tab" data-filter="estagio">Estágio</button>
+          <button class="tab" data-filter="diaria">Diária</button>
+        </div>
+      </section>
+
+      <section class="content-grid">
+        <div class="list-panel" id="jobsList" aria-live="polite"></div>
+
+        <aside class="side-panel">
+          <h3>Receba alertas no WhatsApp</h3>
+          <p>
+            Entre na lista de avisos e seja notificado quando novas vagas forem
+            publicadas na sua cidade.
+          </p>
+          <a class="solid-link" href="https://wa.me/5500000000000" target="_blank" rel="noreferrer">
+            Entrar na lista
+          </a>
+        </aside>
+      </section>
+
+      <section class="section-header" id="servicos">
+        <div>
+          <p class="eyebrow">Contrate perto de casa</p>
+          <h2>Serviços mais procurados</h2>
+        </div>
+      </section>
+
+      <section class="service-grid" id="servicesList"></section>
+
+      <section class="section-header" id="empresas">
+        <div>
+          <p class="eyebrow">Comércio regional</p>
+          <h2>Empresas em destaque</h2>
+        </div>
+      </section>
+
+      <section class="company-grid" id="companiesList"></section>
+
+      <section class="opportunity-band">
+        <div>
+          <p class="eyebrow">Promoções e oportunidades</p>
+          <h2>Espaço para ofertas reais da região</h2>
+          <p>
+            Cupons, campanhas, eventos, cursos e divulgações patrocinadas podem
+            aparecer aqui com destaque por cidade e categoria.
+          </p>
+        </div>
+        <div class="promo-list" id="promotionsList"></div>
+      </section>
+
+      <section class="cta-section" id="anunciar">
+        <div>
+          <p class="eyebrow">Para empresas e profissionais</p>
+          <h2>Tem uma vaga, serviço ou promoção para divulgar?</h2>
+          <p>
+            Comece com publicação gratuita de vagas e opções de destaque para
+            aparecer melhor na sua cidade.
+          </p>
+        </div>
+        <div class="cta-actions">
+          <a class="solid-link" href="https://wa.me/5500000000000" target="_blank" rel="noreferrer">
+            Falar no WhatsApp
+          </a>
+          <a class="ghost-link" href="mailto:contato@guiaextremosulba.com.br">
+            Enviar por e-mail
+          </a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <strong>Guia Extremo Sul BA</strong>
+      <span>Vagas, serviços e empresas locais em um só lugar.</span>
+    </footer>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
