@@ -33,13 +33,13 @@ body {
   min-width: 320px;
   overflow-x: hidden;
   background:
-    radial-gradient(circle at 22% 0%, rgba(255, 211, 106, 0.22), transparent 28rem),
-    radial-gradient(circle at 88% 10%, rgba(255, 183, 3, 0.12), transparent 24rem),
+    radial-gradient(circle at 22% 0%, rgba(255, 211, 106, 0.30), transparent 28rem),
+    radial-gradient(circle at 88% 10%, rgba(255, 183, 3, 0.18), transparent 24rem),
     linear-gradient(rgba(255, 253, 248, 0.72), rgba(255, 248, 234, 0.76)),
     url("./assets/sunflower-pattern.svg"),
     linear-gradient(180deg, #fffaf0 0%, #fffdf8 48%, #fff6e5 100%);
   background-attachment: fixed, fixed, fixed, fixed, scroll;
-  background-size: auto, auto, auto, 420px 420px, auto;
+  background-size: auto, auto, auto, 320px 320px, auto;
   color: var(--brown);
   font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
