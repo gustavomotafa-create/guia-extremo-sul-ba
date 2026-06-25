@@ -1,15 +1,13 @@
 window.GIRASSOL_FIREBASE_CONFIG = {
-  apiKey: "COLE_SUA_API_KEY",
-  authDomain: "COLE_SEU_AUTH_DOMAIN",
-  projectId: "COLE_SEU_PROJECT_ID",
-  storageBucket: "COLE_SEU_STORAGE_BUCKET",
-  messagingSenderId: "COLE_SEU_MESSAGING_SENDER_ID",
-  appId: "COLE_SEU_APP_ID",
+  apiKey: "AIzaSyBCucMF48mpdPa-odrANhrxom_zE1dZsMs",
+  authDomain: "girassol-vagas.firebaseapp.com",
+  projectId: "girassol-vagas",
+  storageBucket: "girassol-vagas.firebasestorage.app",
+  messagingSenderId: "768280099894",
+  appId: "1:768280099894:web:739b3605697e9750422c97",
 };
 
 window.GIRASSOL_ADMIN_EMAILS = ["sunflowercollectivegf@gmail.com"];
-
-window.GIRASSOL_SHOW_DEMO_JOBS = false;
 
 window.GIRASSOL_CONTACTS = {
   whatsapp: "5527988492573",

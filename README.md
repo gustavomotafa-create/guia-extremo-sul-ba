@@ -33,7 +33,7 @@ Coleções previstas:
 
 ## Configuração do front
 
-Copie as chaves do Firebase Web App em `js/firebase-config.js`:
+O projeto já está apontado para o Firebase `girassol-vagas` em `js/firebase-config.js`:
 
 ```js
 window.GIRASSOL_FIREBASE_CONFIG = {
@@ -50,12 +50,9 @@ O admin principal está configurado em:
 
 ```js
 window.GIRASSOL_ADMIN_EMAILS = ["sunflowercollectivegf@gmail.com"];
-window.GIRASSOL_SHOW_DEMO_JOBS = false;
 ```
 
 Para acesso forte ao admin, use uma conta Google com esse e-mail verificado ou defina custom claim `admin: true` no Firebase Authentication.
-
-`GIRASSOL_SHOW_DEMO_JOBS` fica `false` por padrão para produção. Se quiser ver cards demonstrativos sem Firebase durante testes locais, troque temporariamente para `true`.
 
 ## Configuração das Functions
 
@@ -95,4 +92,4 @@ URL esperada:
 
 ## Observação
 
-Sem as chaves reais do Firebase, login, favoritos, admin, área da empresa, upload de logo e pagamentos ficam aguardando configuração. As vagas demonstrativas ficam desligadas por padrão para evitar conteúdo fake em produção.
+O código não usa vagas demonstrativas. A home mostra apenas vagas aprovadas vindas do Firestore.

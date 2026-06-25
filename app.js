@@ -1,116 +1,4 @@
-const demoJobs = [
-  {
-    id: "demo-front-end",
-    title: "Desenvolvedor(a) Front-end",
-    companyName: "Sunflower Tech",
-    city: "Teixeira de Freitas",
-    state: "BA",
-    category: "TI",
-    contract: "Freelancer",
-    modality: "Presencial",
-    level: "Pleno",
-    salary: 6500,
-    salaryLabel: "R$ 6.500",
-    benefits: ["Home Office", "Horário Flexível"],
-    requirements: "Experiência com HTML, CSS, JavaScript e criação de interfaces responsivas.",
-    description: "Atuar no desenvolvimento de páginas, melhorias visuais e interfaces para empresas locais.",
-    whatsapp: "5527988492573",
-    publishedAtLabel: "Publicado há 2 horas",
-    tags: ["Destaque", "Presencial"],
-    mark: "light",
-    status: "aprovada",
-  },
-  {
-    id: "demo-designer",
-    title: "Designer Gráfico",
-    companyName: "Agência Girassol",
-    city: "Itabatã",
-    state: "BA",
-    category: "Marketing",
-    contract: "Freelancer",
-    modality: "Remoto",
-    level: "Júnior",
-    salary: 3200,
-    salaryLabel: "R$ 3.200",
-    benefits: ["Home Office"],
-    requirements: "Portfólio com peças para redes sociais e domínio básico de ferramentas de design.",
-    description: "Criação de artes para Instagram, campanhas locais e materiais promocionais.",
-    whatsapp: "5527988492573",
-    publishedAtLabel: "Publicado há 5 horas",
-    tags: ["Remoto", "Freelancer"],
-    mark: "dark",
-    status: "aprovada",
-  },
-  {
-    id: "demo-assistente",
-    title: "Assistente Administrativo",
-    companyName: "Comércio Bom Preço",
-    city: "Eunápolis",
-    state: "BA",
-    category: "Administração",
-    contract: "CLT",
-    modality: "Presencial",
-    level: "Júnior",
-    salary: 2100,
-    salaryLabel: "R$ 2.100",
-    benefits: ["Vale Alimentação", "Vale Transporte"],
-    requirements: "Boa comunicação, organização e conhecimento básico de planilhas.",
-    description: "Apoio em atendimento, emissão de documentos, organização de rotina e suporte financeiro.",
-    whatsapp: "5527988492573",
-    publishedAtLabel: "Publicado há 1 dia",
-    tags: ["Presencial"],
-    mark: "light",
-    status: "aprovada",
-  },
-  {
-    id: "demo-marketing",
-    title: "Analista de Marketing",
-    companyName: "Sunflower Marketing",
-    city: "Teixeira de Freitas",
-    state: "BA",
-    category: "Marketing",
-    contract: "CLT",
-    modality: "Híbrido",
-    level: "Pleno",
-    salary: 4300,
-    salaryLabel: "R$ 4.300",
-    benefits: ["Vale Alimentação", "Plano de Saúde", "Home Office"],
-    requirements: "Experiência com tráfego pago, conteúdo e análise de métricas.",
-    description: "Planejamento de campanhas, gestão de conteúdo e acompanhamento de resultados para clientes regionais.",
-    whatsapp: "5527988492573",
-    publishedAtLabel: "Publicado há 1 dia",
-    tags: ["Híbrido", "CLT"],
-    mark: "dark",
-    status: "aprovada",
-  },
-  {
-    id: "demo-enfermagem",
-    title: "Técnico em Enfermagem",
-    companyName: "Clínica Vida Sul",
-    city: "Nova Viçosa",
-    state: "BA",
-    category: "Saúde",
-    contract: "CLT",
-    modality: "Presencial",
-    level: "Júnior",
-    salary: 2800,
-    salaryLabel: "R$ 2.800",
-    benefits: ["Vale Transporte", "Plano de Saúde"],
-    requirements: "Curso técnico completo, COREN ativo e disponibilidade para escala.",
-    description: "Atendimento aos pacientes, apoio em procedimentos e organização de materiais clínicos.",
-    whatsapp: "5527988492573",
-    publishedAtLabel: "Publicado há 2 dias",
-    tags: ["Presencial", "CLT"],
-    mark: "light",
-    status: "aprovada",
-  },
-];
-
-function getFallbackJobs() {
-  return window.GIRASSOL_SHOW_DEMO_JOBS ? demoJobs : [];
-}
-
-let jobs = getFallbackJobs();
+let jobs = [];
 let currentUser = null;
 let currentProfile = null;
 let savedJobIds = new Set();
@@ -435,13 +323,13 @@ async function initFirebase() {
   firebaseApi = module;
 
   if (!module.isFirebaseConfigured()) {
-    jobs = getFallbackJobs();
+    jobs = [];
     renderJobs();
     return;
   }
 
   unsubscribeJobs = await module.listenApprovedJobs((remoteJobs) => {
-    jobs = remoteJobs.length ? remoteJobs : getFallbackJobs();
+    jobs = remoteJobs;
     renderJobs();
   });
 
