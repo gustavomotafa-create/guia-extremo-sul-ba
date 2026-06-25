@@ -35,7 +35,7 @@ body {
   background:
     radial-gradient(circle at 22% 0%, rgba(255, 211, 106, 0.22), transparent 28rem),
     radial-gradient(circle at 88% 10%, rgba(255, 183, 3, 0.12), transparent 24rem),
-    linear-gradient(rgba(255, 253, 248, 0.9), rgba(255, 248, 234, 0.94)),
+    linear-gradient(rgba(255, 253, 248, 0.72), rgba(255, 248, 234, 0.76)),
     url("./assets/sunflower-pattern.svg"),
     linear-gradient(180deg, #fffaf0 0%, #fffdf8 48%, #fff6e5 100%);
   background-attachment: fixed, fixed, fixed, fixed, scroll;
