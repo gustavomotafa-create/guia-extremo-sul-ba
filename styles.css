@@ -33,12 +33,10 @@ body {
   min-width: 320px;
   overflow-x: hidden;
   background:
-    linear-gradient(rgba(255, 244, 214, 0.24), rgba(255, 244, 214, 0.16)),
+    linear-gradient(rgba(255, 248, 234, 0.12), rgba(255, 248, 234, 0.12)),
     url("./assets/sunflower-bg.jpg");
-  background-color: #fff4d8;
-  background-position: center;
-  background-size: cover;
-  background-repeat: no-repeat;
+  background-size: 520px 520px;
+  background-repeat: repeat;
   background-attachment: fixed;
   color: var(--brown);
   font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -427,22 +425,15 @@ main {
   margin-top: 32px;
 }
 
-.search-card,
-.filter-panel,
-.share-card,
-.value-strip {
+.search-card {
   position: relative;
   z-index: 5;
-  border: 1px solid rgba(234, 220, 199, 0.9);
-  border-radius: 12px;
-  background: rgba(255, 253, 248, 0.94);
-  box-shadow: var(--shadow-float);
-  backdrop-filter: blur(8px);
-}
-
-.search-card {
   margin-top: -66px;
   padding: 25px 26px 20px;
+  border: 1px solid rgba(234, 220, 199, 0.9);
+  border-radius: 8px;
+  background: rgba(255, 253, 248, 0.97);
+  box-shadow: var(--shadow-float);
 }
 
 .search-card::before {
