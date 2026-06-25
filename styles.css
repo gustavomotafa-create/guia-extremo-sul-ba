@@ -336,7 +336,7 @@ main {
   background-position: center;
   background-size: cover;
   background-repeat: no-repeat;
-  filter: saturate(1.28) contrast(1.08) brightness(0.96);
+  filter: saturate(1.42) contrast(1.14) brightness(0.9);
   transform: scale(1.03);
 }
 
@@ -347,8 +347,8 @@ main {
   z-index: 1;
   pointer-events: none;
   background:
-    linear-gradient(90deg, rgba(255, 248, 234, 0.92) 0%, rgba(255, 248, 234, 0.84) 38%, rgba(255, 248, 234, 0.62) 62%, rgba(255, 248, 234, 0.24) 100%),
-    linear-gradient(180deg, rgba(255, 248, 234, 0.08), rgba(255, 248, 234, 0.02));
+    linear-gradient(90deg, rgba(255, 248, 234, 0.82) 0%, rgba(255, 248, 234, 0.74) 38%, rgba(255, 248, 234, 0.5) 62%, rgba(255, 248, 234, 0.18) 100%),
+    linear-gradient(180deg, rgba(255, 248, 234, 0.06), rgba(255, 248, 234, 0.02));
 }
 
 .hero-shell {
