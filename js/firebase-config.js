@@ -9,6 +9,8 @@ window.GIRASSOL_FIREBASE_CONFIG = {
 
 window.GIRASSOL_ADMIN_EMAILS = ["sunflowercollectivegf@gmail.com"];
 
+window.GIRASSOL_SHOW_DEMO_JOBS = false;
+
 window.GIRASSOL_CONTACTS = {
   whatsapp: "5527988492573",
   email: "sunflowercollectivegf@gmail.com",

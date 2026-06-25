@@ -106,6 +106,17 @@
         </label>
 
         <label class="form-field full-row">
+          Logo da empresa
+          <input id="logoInput" name="logo" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" />
+          <span class="form-note">Opcional. Se não enviar, a vaga usa automaticamente o ícone de girassol.</span>
+        </label>
+
+        <div class="logo-preview full-row" id="logoPreview" hidden>
+          <img id="logoPreviewImage" src="../assets/sunflower-logo.svg" alt="" />
+          <span>Prévia do logo</span>
+        </div>
+
+        <label class="form-field full-row">
           Descrição da vaga
           <textarea name="description" required placeholder="Conte as principais atividades, requisitos e como será o dia a dia."></textarea>
         </label>

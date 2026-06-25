@@ -24,13 +24,22 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == companyId;
     }
 
+    function validCompanyJobStatus() {
+      return (
+        resource.data.paymentStatus == 'aguardando_pagamento'
+        && request.resource.data.status == 'aguardando_pagamento'
+      ) || (
+        resource.data.paymentStatus in ['gratis', 'paga']
+        && request.resource.data.status in ['pendente', 'pausada']
+      );
+    }
+
     function companyCanUpdateJob() {
       return signedIn()
         && resource.data.companyId == request.auth.uid
         && request.resource.data.companyId == resource.data.companyId
         && request.resource.data.paymentStatus == resource.data.paymentStatus
-        && resource.data.paymentStatus in ['gratis', 'paga']
-        && request.resource.data.status in ['pendente', 'pausada']
+        && validCompanyJobStatus()
         && request.resource.data.diff(resource.data).changedKeys().hasOnly([
           'title',
           'companyName',
@@ -45,6 +54,8 @@ service cloud.firestore {
           'description',
           'requirements',
           'benefits',
+          'logoUrl',
+          'rejectionReason',
           'tags',
           'status',
           'updatedAt'

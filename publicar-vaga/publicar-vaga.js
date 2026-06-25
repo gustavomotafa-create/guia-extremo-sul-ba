@@ -4,6 +4,9 @@ const statusTitle = document.querySelector("#publishStatusTitle");
 const statusText = document.querySelector("#publishStatusText");
 const paymentActions = document.querySelector("#paymentActions");
 const checkoutLink = document.querySelector("#checkoutLink");
+const logoInput = document.querySelector("#logoInput");
+const logoPreview = document.querySelector("#logoPreview");
+const logoPreviewImage = document.querySelector("#logoPreviewImage");
 
 let firebaseApi;
 let currentUser;
@@ -18,7 +21,25 @@ function showStatus(title, text, checkoutUrl) {
   successCard.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
-function normalizePayload(data) {
+async function getLogoUrl(data) {
+  const file = data.get("logo");
+  if (!file || !file.size) return "";
+  return firebaseApi.uploadCompanyLogo(file, currentUser.uid);
+}
+
+function updateLogoPreview() {
+  const file = logoInput.files?.[0];
+  if (!file) {
+    logoPreview.hidden = true;
+    logoPreviewImage.src = "../assets/sunflower-logo.svg";
+    return;
+  }
+
+  logoPreview.hidden = false;
+  logoPreviewImage.src = URL.createObjectURL(file);
+}
+
+async function normalizePayload(data) {
   const benefits = String(data.get("benefits") || "")
     .split(",")
     .map((item) => item.trim())
@@ -35,6 +56,7 @@ function normalizePayload(data) {
     description: data.get("description"),
     requirements: data.get("requirements"),
     benefits,
+    logoUrl: await getLogoUrl(data),
     category: "Serviços Gerais",
     status: "pendente",
     paymentStatus: "gratis",
@@ -63,7 +85,7 @@ form.addEventListener("submit", async (event) => {
   }
 
   try {
-    const payload = normalizePayload(new FormData(form));
+    const payload = await normalizePayload(new FormData(form));
     const result = await firebaseApi.submitJobWithQuota(payload);
 
     if (result.requiresPayment) {
@@ -76,11 +98,14 @@ form.addEventListener("submit", async (event) => {
     }
 
     form.reset();
+    updateLogoPreview();
     showStatus("Vaga enviada para aprovação.", "A vaga entrou como pendente e será analisada pelo admin do Girassol Vagas.");
   } catch (error) {
     showStatus("Não foi possível enviar a vaga.", error.message || "Tente novamente em alguns instantes.");
   }
 });
+
+logoInput.addEventListener("change", updateLogoPreview);
 
 async function init() {
   firebaseApi = await import("../js/firebase-client.js");

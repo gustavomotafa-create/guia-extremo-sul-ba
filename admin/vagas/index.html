@@ -50,8 +50,119 @@
         <p>O painel é protegido por autenticação e regras do Firestore.</p>
       </div>
 
+      <section class="admin-toolbar" id="adminToolbar" hidden>
+        <label class="form-field">
+          Filtrar por status
+          <select id="statusFilter">
+            <option value="">Todos os status</option>
+            <option value="pendente">Pendentes</option>
+            <option value="aguardando_pagamento">Aguardando pagamento</option>
+            <option value="aprovada">Aprovadas</option>
+            <option value="rejeitada">Rejeitadas</option>
+            <option value="pausada">Pausadas</option>
+          </select>
+        </label>
+        <label class="form-field">
+          Buscar
+          <input id="adminSearch" type="search" placeholder="Cargo, empresa ou cidade" />
+        </label>
+      </section>
+
       <section class="admin-list" id="adminList"></section>
     </main>
+
+    <dialog class="app-dialog edit-dialog" id="editJobDialog">
+      <button class="dialog-close" type="button" data-close-dialog aria-label="Fechar">×</button>
+      <h2>Editar vaga</h2>
+      <form class="form-card compact-form" id="editJobForm">
+        <input type="hidden" name="id" />
+        <label class="form-field">
+          Nome da empresa
+          <input name="companyName" required />
+        </label>
+        <label class="form-field">
+          Cargo
+          <input name="title" required />
+        </label>
+        <label class="form-field">
+          Cidade
+          <select name="city" required></select>
+        </label>
+        <label class="form-field">
+          Categoria
+          <select name="category"></select>
+        </label>
+        <label class="form-field">
+          Salário
+          <input name="salaryLabel" placeholder="A combinar" />
+        </label>
+        <label class="form-field">
+          Tipo de contrato
+          <select name="contract" required>
+            <option>CLT</option>
+            <option>PJ</option>
+            <option>Freelancer</option>
+            <option>Estágio</option>
+            <option>Temporário</option>
+          </select>
+        </label>
+        <label class="form-field">
+          Modalidade
+          <select name="modality" required>
+            <option>Presencial</option>
+            <option>Remoto</option>
+            <option>Híbrido</option>
+          </select>
+        </label>
+        <label class="form-field">
+          Nível
+          <select name="level">
+            <option>Estágio</option>
+            <option>Júnior</option>
+            <option>Pleno</option>
+            <option>Sênior</option>
+            <option>Especialista</option>
+          </select>
+        </label>
+        <label class="form-field">
+          WhatsApp
+          <input name="whatsapp" required />
+        </label>
+        <label class="form-field">
+          Status
+          <select name="status">
+            <option value="pendente">Pendente</option>
+            <option value="aprovada">Aprovada</option>
+            <option value="rejeitada">Rejeitada</option>
+            <option value="pausada">Pausada</option>
+          </select>
+        </label>
+        <label class="form-field full-row">
+          URL do logo
+          <input name="logoUrl" placeholder="Opcional. Se vazio, usa o girassol padrão." />
+        </label>
+        <label class="form-field full-row">
+          Descrição
+          <textarea name="description" required></textarea>
+        </label>
+        <label class="form-field full-row">
+          Requisitos
+          <textarea name="requirements" required></textarea>
+        </label>
+        <label class="form-field full-row">
+          Benefícios
+          <textarea name="benefits" placeholder="Separe por vírgula"></textarea>
+        </label>
+        <label class="form-field full-row">
+          Motivo da rejeição
+          <textarea name="rejectionReason" placeholder="Opcional, aparece no admin/empresa."></textarea>
+        </label>
+        <div class="form-actions">
+          <button class="secondary-button" type="button" data-close-dialog>Cancelar</button>
+          <button class="primary-button" type="submit">Salvar alterações</button>
+        </div>
+      </form>
+    </dialog>
 
     <script src="../../js/firebase-config.js"></script>
     <script src="../../js/constants.js"></script>

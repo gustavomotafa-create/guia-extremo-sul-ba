@@ -126,6 +126,7 @@ function buildJobPayload(data, auth, quota) {
     description,
     requirements,
     benefits,
+    logoUrl: cleanString(data.logoUrl),
     tags: [modality, contract].filter(Boolean),
     status: quota.status,
     paymentStatus: quota.paymentStatus,

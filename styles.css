@@ -1180,6 +1180,10 @@ input[type="checkbox"] {
   padding: 24px;
 }
 
+.compact-form {
+  box-shadow: none;
+}
+
 .form-field.full-row,
 .form-actions,
 .success-card {
@@ -1200,6 +1204,27 @@ input[type="checkbox"] {
   line-height: 1.5;
 }
 
+.logo-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 72px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--brown);
+  font-weight: 800;
+}
+
+.logo-preview img {
+  width: 52px;
+  height: 52px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: #fff4cc;
+}
+
 .success-card {
   display: none;
   margin-top: 18px;
@@ -1216,12 +1241,42 @@ input[type="checkbox"] {
   gap: 14px;
 }
 
+.admin-toolbar {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 16px;
+  margin-bottom: 18px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 253, 248, 0.94);
+  box-shadow: var(--shadow-card);
+}
+
 .dashboard-grid,
 .pricing-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 18px;
   margin-bottom: 24px;
+}
+
+.quota-meter {
+  display: grid;
+  gap: 8px;
+  margin: 4px 0 10px;
+  color: var(--brown);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.quota-meter span {
+  display: inline-flex;
+  width: fit-content;
+  padding: 7px 10px;
+  border: 1px solid rgba(255, 183, 3, 0.36);
+  border-radius: 999px;
+  background: rgba(255, 244, 204, 0.7);
 }
 
 .pricing-card {
@@ -1274,6 +1329,13 @@ input[type="checkbox"] {
   display: grid;
   gap: 12px;
   padding: 20px;
+}
+
+.admin-card-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
 }
 
 .admin-card h3,
@@ -1403,6 +1465,15 @@ input[type="checkbox"] {
   margin-top: 8px;
 }
 
+.edit-dialog {
+  width: min(860px, calc(100% - 28px));
+}
+
+.edit-dialog h2 {
+  margin-top: 0;
+  color: var(--brown-dark);
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -1448,6 +1519,7 @@ input[type="checkbox"] {
   .value-strip,
   .footer-grid,
   .form-card,
+  .admin-toolbar,
   .dashboard-grid,
   .pricing-grid {
     grid-template-columns: 1fr;

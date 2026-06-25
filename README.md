@@ -11,7 +11,9 @@ Plataforma regional para conectar candidatos, empresas e oportunidades no Extrem
 - Favoritos com login e página "Minhas Vagas Salvas".
 - Cadastro/login de candidatos e empresas via Firebase Authentication.
 - Área da empresa para acompanhar, editar, pausar, excluir e pagar vagas.
-- Admin protegido para aprovar, rejeitar, editar e excluir vagas.
+- Área da empresa com contador diário, histórico de pagamentos e edição completa.
+- Admin protegido com filtro por status, busca, aprovação, rejeição com motivo, edição completa e exclusão.
+- Upload de logo da empresa via Firebase Storage, com fallback automático para o ícone de girassol.
 - Publicação com aprovação manual: vagas novas não aparecem publicamente até aprovação.
 - Limite por empresa: 3 vagas grátis por dia; cada pagamento de R$ 5,00 libera mais 3 publicações extras no mesmo dia.
 - Base de pagamento automático via Mercado Pago, com webhook de confirmação.
@@ -27,6 +29,7 @@ Coleções previstas:
 - `payments`: histórico de pagamentos.
 - `companyDailyUsage`: controle diário de vagas grátis e créditos pagos por empresa.
 - `plans`: planos ou configurações comerciais futuras.
+- Firebase Storage: logos das empresas em `company-logos/{uid}/`.
 
 ## Configuração do front
 
@@ -47,9 +50,12 @@ O admin principal está configurado em:
 
 ```js
 window.GIRASSOL_ADMIN_EMAILS = ["sunflowercollectivegf@gmail.com"];
+window.GIRASSOL_SHOW_DEMO_JOBS = false;
 ```
 
 Para acesso forte ao admin, use uma conta Google com esse e-mail verificado ou defina custom claim `admin: true` no Firebase Authentication.
+
+`GIRASSOL_SHOW_DEMO_JOBS` fica `false` por padrão para produção. Se quiser ver cards demonstrativos sem Firebase durante testes locais, troque temporariamente para `true`.
 
 ## Configuração das Functions
 
@@ -58,7 +64,7 @@ Instale e publique com Firebase CLI:
 ```bash
 cd functions
 npm install
-firebase deploy --only firestore,functions,hosting
+firebase deploy --only firestore,storage,functions,hosting
 ```
 
 Configure o Mercado Pago:
@@ -89,4 +95,4 @@ URL esperada:
 
 ## Observação
 
-Sem as chaves reais do Firebase, o site continua abrindo com vagas demonstrativas, mas login, favoritos, admin, área da empresa e pagamentos ficam aguardando configuração.
+Sem as chaves reais do Firebase, login, favoritos, admin, área da empresa, upload de logo e pagamentos ficam aguardando configuração. As vagas demonstrativas ficam desligadas por padrão para evitar conteúdo fake em produção.

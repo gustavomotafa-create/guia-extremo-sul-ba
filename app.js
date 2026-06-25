@@ -106,7 +106,11 @@ const demoJobs = [
   },
 ];
 
-let jobs = demoJobs;
+function getFallbackJobs() {
+  return window.GIRASSOL_SHOW_DEMO_JOBS ? demoJobs : [];
+}
+
+let jobs = getFallbackJobs();
 let currentUser = null;
 let currentProfile = null;
 let savedJobIds = new Set();
@@ -431,12 +435,13 @@ async function initFirebase() {
   firebaseApi = module;
 
   if (!module.isFirebaseConfigured()) {
+    jobs = getFallbackJobs();
     renderJobs();
     return;
   }
 
   unsubscribeJobs = await module.listenApprovedJobs((remoteJobs) => {
-    jobs = remoteJobs.length ? remoteJobs : demoJobs;
+    jobs = remoteJobs.length ? remoteJobs : getFallbackJobs();
     renderJobs();
   });
 
