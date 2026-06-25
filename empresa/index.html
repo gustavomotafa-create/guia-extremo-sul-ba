@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Área da Empresa | Girassol Vagas</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Pacifico&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="header-shell">
+        <a class="brand" href="../index.html" aria-label="Girassol Vagas">
+          <span class="brand-icon"><img src="../assets/sunflower-logo.svg" alt="" /></span>
+          <span><strong>Girassol</strong><small>Vagas</small></span>
+        </a>
+        <nav class="main-nav" aria-label="Navegação principal">
+          <a href="../index.html">Início</a>
+          <a href="../publicar-vaga/">Publicar Vaga</a>
+          <a href="../precos/">Preços</a>
+          <a href="../contato/">Contato</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="page-shell">
+      <section class="page-hero">
+        <div>
+          <h1>Área da Empresa</h1>
+          <p>Publique vagas, acompanhe status, edite, pause ou exclua oportunidades da sua empresa.</p>
+        </div>
+        <a class="primary-button" href="../publicar-vaga/">+ Publicar Vaga</a>
+      </section>
+
+      <section class="dashboard-grid">
+        <article class="admin-card">
+          <span class="tag">Limite diário</span>
+          <h3 id="quotaTitle">3 vagas grátis por dia</h3>
+          <p id="quotaText">Publicações extras custam R$ 5,00 e liberam mais 3 vagas no mesmo dia.</p>
+          <a class="outline-button" href="../precos/">Ver preços</a>
+        </article>
+        <article class="admin-card">
+          <span class="tag">Pagamentos</span>
+          <h3>Histórico</h3>
+          <div id="paymentsList" class="compact-list">Carregando pagamentos...</div>
+        </article>
+      </section>
+
+      <section class="section-title page-section-title">
+        <div>
+          <span class="section-icon"><img src="../assets/sunflower-logo.svg" alt="" /></span>
+          <h2>Minhas vagas</h2>
+        </div>
+      </section>
+
+      <section class="admin-list" id="companyJobsList"></section>
+    </main>
+
+    <script src="../js/firebase-config.js"></script>
+    <script src="./empresa.js"></script>
+  </body>
+</html>

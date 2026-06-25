@@ -27,6 +27,7 @@
         <nav class="main-nav" aria-label="Navegação principal">
           <a href="../../index.html">Início</a>
           <a href="../../index.html#vagas">Vagas</a>
+          <a href="../../sobre/">Como Funciona</a>
           <a href="../../publicar-vaga/">Publicar Vaga</a>
         </nav>
         <div class="header-actions">
@@ -39,17 +40,21 @@
       <section class="page-hero">
         <div>
           <h1>Admin de Vagas</h1>
-          <p>
-            Revise oportunidades enviadas por empresas antes de publicar. Este painel
-            é uma simulação inicial do fluxo de aprovação manual.
-          </p>
+          <p>Revise oportunidades enviadas por empresas antes de publicar. Somente usuários admin podem aprovar, editar, rejeitar ou excluir vagas.</p>
         </div>
         <a class="outline-button" href="../../index.html">Ver site</a>
       </section>
 
+      <div class="success-card is-visible" id="adminGuard">
+        <strong>Verificando acesso...</strong>
+        <p>O painel é protegido por autenticação e regras do Firestore.</p>
+      </div>
+
       <section class="admin-list" id="adminList"></section>
     </main>
 
+    <script src="../../js/firebase-config.js"></script>
+    <script src="../../js/constants.js"></script>
     <script src="./admin.js"></script>
   </body>
 </html>

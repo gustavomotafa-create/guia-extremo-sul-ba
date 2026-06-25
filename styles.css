@@ -35,7 +35,11 @@ body {
   background:
     radial-gradient(circle at 22% 0%, rgba(255, 211, 106, 0.34), transparent 28rem),
     radial-gradient(circle at 88% 10%, rgba(255, 183, 3, 0.18), transparent 24rem),
+    linear-gradient(rgba(255, 248, 234, 0.92), rgba(255, 248, 234, 0.92)),
+    url("./assets/sunflower-pattern.svg"),
     linear-gradient(180deg, #fffaf0 0%, #fffdf8 48%, #fff6e5 100%);
+  background-attachment: fixed, fixed, fixed, fixed, scroll;
+  background-size: auto, auto, auto, 260px 260px, auto;
   color: var(--brown);
   font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
@@ -104,6 +108,7 @@ img {
   align-items: center;
   gap: 12px;
   min-width: max-content;
+  line-height: 1;
 }
 
 .brand-icon {
@@ -135,6 +140,12 @@ img {
   font-weight: 900;
   letter-spacing: 0.29em;
   text-transform: uppercase;
+}
+
+.brand > span:last-child {
+  display: grid;
+  gap: 2px;
+  align-content: center;
 }
 
 .main-nav {
@@ -387,7 +398,7 @@ main {
 
 .hero-photo::before {
   background:
-    linear-gradient(90deg, #fff8ea 0%, rgba(255, 248, 234, 0.95) 10%, rgba(255, 248, 234, 0.42) 35%, rgba(255, 248, 234, 0.02) 64%),
+    linear-gradient(90deg, #fff8ea 0%, rgba(255, 248, 234, 0.88) 9%, rgba(255, 248, 234, 0.27) 31%, rgba(255, 248, 234, 0.02) 58%),
     linear-gradient(0deg, #fff8ea 0%, rgba(255, 248, 234, 0) 20%);
 }
 
@@ -395,8 +406,8 @@ main {
   left: -14%;
   width: 44%;
   border-bottom-right-radius: 58%;
-  background: rgba(255, 248, 234, 0.52);
-  box-shadow: 0 0 0 80px rgba(255, 248, 234, 0.18);
+  background: rgba(255, 248, 234, 0.34);
+  box-shadow: 0 0 0 70px rgba(255, 248, 234, 0.1);
 }
 
 .hero-photo img {
@@ -799,6 +810,16 @@ input[type="checkbox"] {
   border: 1.7px solid var(--gold);
 }
 
+.save-button.is-saved {
+  background: linear-gradient(135deg, var(--sun), var(--sun-bright));
+  box-shadow: 0 10px 22px rgba(255, 183, 3, 0.22);
+}
+
+.save-button.is-saved::before,
+.save-button.is-saved::after {
+  border-color: var(--brown-dark);
+}
+
 .save-button::before {
   width: 12px;
   height: 16px;
@@ -999,8 +1020,8 @@ input[type="checkbox"] {
 
 .footer-grid {
   display: grid;
-  grid-template-columns: minmax(230px, 1.35fr) repeat(2, minmax(150px, 0.7fr)) minmax(230px, 1fr);
-  gap: 42px;
+  grid-template-columns: minmax(220px, 1.2fr) repeat(3, minmax(132px, 0.72fr)) minmax(220px, 1fr);
+  gap: 30px;
   width: min(1160px, calc(100% - 64px));
   margin: 0 auto;
   padding: 34px 0 28px;
@@ -1044,6 +1065,35 @@ input[type="checkbox"] {
   display: flex;
   gap: 10px;
   margin-top: 16px;
+}
+
+.footer-contact-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.footer-contact-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.74);
+  color: var(--brown);
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.footer-contact-links a::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--sun);
 }
 
 .social-row a {
@@ -1166,6 +1216,60 @@ input[type="checkbox"] {
   gap: 14px;
 }
 
+.dashboard-grid,
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-bottom: 24px;
+}
+
+.pricing-card {
+  min-height: 260px;
+  align-content: space-between;
+}
+
+.featured-price {
+  border-color: rgba(255, 183, 3, 0.72);
+  background:
+    radial-gradient(circle at 88% 12%, rgba(255, 183, 3, 0.22), transparent 10rem),
+    linear-gradient(180deg, rgba(255, 253, 248, 0.98), rgba(255, 244, 209, 0.94));
+}
+
+.content-card {
+  display: grid;
+  gap: 14px;
+  line-height: 1.7;
+}
+
+.content-card h2,
+.content-card h3 {
+  margin: 8px 0 0;
+  color: var(--brown-dark);
+}
+
+.content-card p {
+  margin: 0;
+}
+
+.compact-list {
+  display: grid;
+  gap: 8px;
+  color: var(--brown);
+}
+
+.compact-list p {
+  margin: 0;
+}
+
+.page-section-title {
+  margin-top: 30px;
+}
+
+.auth-card {
+  max-width: 760px;
+}
+
 .admin-card {
   display: grid;
   gap: 12px;
@@ -1204,6 +1308,101 @@ input[type="checkbox"] {
   text-align: center;
 }
 
+.app-dialog {
+  width: min(680px, calc(100% - 28px));
+  max-height: min(820px, calc(100vh - 32px));
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background:
+    linear-gradient(rgba(255, 253, 248, 0.96), rgba(255, 253, 248, 0.96)),
+    url("./assets/sunflower-pattern.svg");
+  background-size: auto, 240px 240px;
+  color: var(--brown);
+  box-shadow: var(--shadow-float);
+  padding: 28px;
+}
+
+.app-dialog::backdrop {
+  background: rgba(36, 12, 2, 0.48);
+  backdrop-filter: blur(5px);
+}
+
+.dialog-close {
+  position: sticky;
+  top: 0;
+  float: right;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--brown-dark);
+  color: #fff8ea;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.details-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.details-header h2 {
+  margin: 8px 0 4px;
+  color: var(--brown-dark);
+  font-size: clamp(1.6rem, 4vw, 2.3rem);
+}
+
+.details-header p,
+.details-grid dd,
+.app-dialog p {
+  color: var(--brown);
+}
+
+.details-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0 0 22px;
+}
+
+.details-grid div {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.details-grid dt {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.details-grid dd {
+  margin: 5px 0 0;
+  font-weight: 800;
+}
+
+.details-actions,
+.dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.auth-dialog {
+  width: min(480px, calc(100% - 28px));
+}
+
+.auth-dialog h2 {
+  margin-top: 8px;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -1223,7 +1422,7 @@ input[type="checkbox"] {
   .header-shell,
   main,
   .footer-grid {
-    width: min(100% - 32px, 1160px);
+    width: min(1160px, calc(100% - 32px));
   }
 
   .hero-section {
@@ -1239,7 +1438,7 @@ input[type="checkbox"] {
 
   .hero-photo::before {
     background:
-      linear-gradient(180deg, #fff8ea 0%, rgba(255, 248, 234, 0.5) 28%, rgba(255, 248, 234, 0.05) 75%),
+      linear-gradient(180deg, #fff8ea 0%, rgba(255, 248, 234, 0.36) 28%, rgba(255, 248, 234, 0.05) 75%),
       linear-gradient(0deg, #fff8ea 0%, rgba(255, 248, 234, 0) 34%);
   }
 
@@ -1248,7 +1447,9 @@ input[type="checkbox"] {
   .advanced-search,
   .value-strip,
   .footer-grid,
-  .form-card {
+  .form-card,
+  .dashboard-grid,
+  .pricing-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1269,6 +1470,13 @@ input[type="checkbox"] {
   .header-shell {
     min-height: 72px;
     gap: 14px;
+  }
+
+  main,
+  .header-shell,
+  .footer-grid {
+    width: calc(100% - 32px);
+    max-width: calc(100% - 32px);
   }
 
   .brand-icon,
@@ -1319,14 +1527,37 @@ input[type="checkbox"] {
     flex-direction: column;
   }
 
+  .hero-actions {
+    width: 100%;
+    max-width: 360px;
+  }
+
+  .hero-actions > a {
+    width: 100%;
+  }
+
   .search-card {
+    width: min(100%, calc(100vw - 32px));
+    margin-inline: auto;
     padding: 16px;
+  }
+
+  .search-card,
+  .search-card form,
+  .search-card label,
+  .search-card input,
+  .search-card select {
+    min-width: 0;
+    max-width: 100%;
   }
 
   .job-card {
     grid-template-columns: 56px minmax(0, 1fr);
     gap: 14px;
     padding: 16px;
+    width: min(100%, calc(100vw - 32px));
+    max-width: calc(100vw - 32px);
+    margin-inline: auto;
   }
 
   .company-mark {
@@ -1341,8 +1572,13 @@ input[type="checkbox"] {
 
   .job-actions {
     grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 1fr;
     justify-content: stretch;
-    width: 100%;
+    justify-self: stretch;
+    width: auto;
+    max-width: 100%;
+    gap: 10px;
   }
 
   .job-meta {
@@ -1351,12 +1587,16 @@ input[type="checkbox"] {
   }
 
   .details-button {
-    flex: 1;
+    width: 100%;
     min-width: 0;
+    padding-inline: 12px;
   }
 
   .save-button {
-    display: none;
+    display: inline-flex;
+    justify-self: center;
+    min-width: 0;
+    width: 44px;
   }
 
   .share-card {
@@ -1365,6 +1605,10 @@ input[type="checkbox"] {
 
   .filter-panel fieldset label {
     width: 100%;
+  }
+
+  .details-grid {
+    grid-template-columns: 1fr;
   }
 
   .primary-button,

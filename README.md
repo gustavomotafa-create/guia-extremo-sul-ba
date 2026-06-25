@@ -2,42 +2,91 @@
 
 Plataforma regional para conectar candidatos, empresas e oportunidades no Extremo Sul da Bahia.
 
-## Objetivo
+## O que o site entrega
 
-Centralizar vagas de emprego e facilitar a publicação de oportunidades por empresas da região, com identidade visual inspirada em girassóis e no clima quente do Extremo Sul da Bahia.
+- Visual premium em amarelo girassol, creme e marrom.
+- Busca rápida por cargo, categoria e cidade.
+- Busca avançada por salário, contrato, modalidade e nível.
+- Cards de vagas com detalhes completos e candidatura por WhatsApp.
+- Favoritos com login e página "Minhas Vagas Salvas".
+- Cadastro/login de candidatos e empresas via Firebase Authentication.
+- Área da empresa para acompanhar, editar, pausar, excluir e pagar vagas.
+- Admin protegido para aprovar, rejeitar, editar e excluir vagas.
+- Publicação com aprovação manual: vagas novas não aparecem publicamente até aprovação.
+- Limite por empresa: 3 vagas grátis por dia; cada pagamento de R$ 5,00 libera mais 3 publicações extras no mesmo dia.
+- Base de pagamento automático via Mercado Pago, com webhook de confirmação.
 
-## MVP atual
+## Estrutura Firebase
 
-- Página inicial com hero visual de girassol.
-- Busca por cargo, palavra-chave, empresa, categoria e cidade.
-- Busca avançada por contrato, modalidade, nível e faixa salarial.
-- Lista de vagas recentes com cards, tags e botão de detalhes.
-- Filtro lateral por contrato, modalidade, experiência, benefícios e cidade.
-- Página `publicar-vaga/` com formulário para empresas.
-- Página `admin/vagas/` simulando aprovação manual.
+Coleções previstas:
 
-## Próximos passos sugeridos
+- `users`: perfis de candidatos, empresas e admin.
+- `companies`: empresas cadastradas.
+- `jobs`: vagas com status `pendente`, `aguardando_pagamento`, `aprovada`, `rejeitada` ou `pausada`.
+- `savedJobs`: vagas salvas por candidatos.
+- `payments`: histórico de pagamentos.
+- `companyDailyUsage`: controle diário de vagas grátis e créditos pagos por empresa.
+- `plans`: planos ou configurações comerciais futuras.
 
-1. Conectar o formulário a um backend real.
-2. Criar autenticação para empresas.
-3. Persistir vagas em banco de dados.
-4. Transformar o admin estático em painel real.
-5. Preparar alertas por WhatsApp/e-mail.
+## Configuração do front
 
-## Como abrir
+Copie as chaves do Firebase Web App em `js/firebase-config.js`:
 
-Abra o arquivo `index.html` no navegador.
+```js
+window.GIRASSOL_FIREBASE_CONFIG = {
+  apiKey: "...",
+  authDomain: "...",
+  projectId: "...",
+  storageBucket: "...",
+  messagingSenderId: "...",
+  appId: "...",
+};
+```
 
-## Publicação
+O admin principal está configurado em:
 
-O site está pronto para publicação no GitHub Pages usando a opção **Deploy from a branch**.
+```js
+window.GIRASSOL_ADMIN_EMAILS = ["sunflowercollectivegf@gmail.com"];
+```
 
-Configuração recomendada no GitHub:
+Para acesso forte ao admin, use uma conta Google com esse e-mail verificado ou defina custom claim `admin: true` no Firebase Authentication.
+
+## Configuração das Functions
+
+Instale e publique com Firebase CLI:
+
+```bash
+cd functions
+npm install
+firebase deploy --only firestore,functions,hosting
+```
+
+Configure o Mercado Pago:
+
+```bash
+firebase functions:secrets:set MERCADO_PAGO_ACCESS_TOKEN
+```
+
+Parâmetros usados pelas Functions:
+
+- `MERCADO_PAGO_ACCESS_TOKEN`: token privado do Mercado Pago.
+- `PUBLIC_SITE_URL`: URL pública do site, por exemplo `https://gustavomotafa-create.github.io/guia-extremo-sul-ba`.
+- `PUBLIC_FUNCTIONS_URL`: opcional, URL base das Functions. Se vazio, o código monta pela região `southamerica-east1`.
+
+Os parâmetros `PUBLIC_SITE_URL` e `PUBLIC_FUNCTIONS_URL` podem ser preenchidos quando o Firebase CLI pedir no deploy, ou via arquivo `.env` dentro de `functions/`.
+
+## Publicação no GitHub Pages
+
+O site está pronto para GitHub Pages usando:
 
 - Source: `Deploy from a branch`
 - Branch: `main`
 - Folder: `/ (root)`
 
-URL esperada após ativar:
+URL esperada:
 
 `https://gustavomotafa-create.github.io/guia-extremo-sul-ba/`
+
+## Observação
+
+Sem as chaves reais do Firebase, o site continua abrindo com vagas demonstrativas, mas login, favoritos, admin, área da empresa e pagamentos ficam aguardando configuração.

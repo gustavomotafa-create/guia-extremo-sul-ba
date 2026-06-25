@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Minhas Vagas Salvas | Girassol Vagas</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Pacifico&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="header-shell">
+        <a class="brand" href="../index.html" aria-label="Girassol Vagas">
+          <span class="brand-icon"><img src="../assets/sunflower-logo.svg" alt="" /></span>
+          <span><strong>Girassol</strong><small>Vagas</small></span>
+        </a>
+        <nav class="main-nav" aria-label="Navegação principal">
+          <a href="../index.html">Início</a>
+          <a href="../index.html#vagas">Vagas</a>
+          <a href="../sobre/">Como Funciona</a>
+          <a href="../contato/">Contato</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="page-shell">
+      <section class="page-hero">
+        <div>
+          <h1>Minhas Vagas Salvas</h1>
+          <p>Veja as oportunidades que você favoritou para se candidatar depois.</p>
+        </div>
+        <a class="outline-button" href="../index.html#vagas">Ver mais vagas</a>
+      </section>
+
+      <section class="admin-list" id="savedJobsList"></section>
+    </main>
+
+    <script src="../js/firebase-config.js"></script>
+    <script src="./salvas.js"></script>
+  </body>
+</html>

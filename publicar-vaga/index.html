@@ -27,11 +27,12 @@
         <nav class="main-nav" aria-label="Navegação principal">
           <a href="../index.html">Início</a>
           <a href="../index.html#vagas">Vagas</a>
-          <a href="../index.html#sobre">Sobre o Projeto</a>
-          <a href="../index.html#contato">Contato</a>
+          <a href="../sobre/">Como Funciona</a>
+          <a href="../precos/">Preços</a>
+          <a href="../contato/">Contato</a>
         </nav>
         <div class="header-actions">
-          <a class="primary-button" href="../admin/vagas/">Admin de Vagas</a>
+          <a class="primary-button" href="../empresa/">Área da Empresa</a>
         </div>
       </div>
     </header>
@@ -40,10 +41,7 @@
       <section class="page-hero">
         <div>
           <h1>Publicar Vaga</h1>
-          <p>
-            Cadastre a oportunidade da sua empresa. A vaga entra como pendente e
-            passa por aprovação manual antes de aparecer para os candidatos.
-          </p>
+          <p>Cadastre a oportunidade da sua empresa. Todas as vagas entram como pendentes e passam por aprovação manual antes de aparecer para os candidatos.</p>
         </div>
         <a class="outline-button" href="../index.html">Voltar para vagas</a>
       </section>
@@ -72,8 +70,11 @@
             <option>Teixeira de Freitas</option>
             <option>Nova Viçosa</option>
             <option>Mucuri</option>
-            <option>São Mateus</option>
             <option>Eunápolis</option>
+            <option>Itabatã</option>
+            <option>Medeiros Neto</option>
+            <option>Caravelas</option>
+            <option>Alcobaça</option>
           </select>
         </label>
 
@@ -94,9 +95,24 @@
           </select>
         </label>
 
+        <label class="form-field">
+          Modalidade
+          <select name="modality" required>
+            <option value="">Selecione</option>
+            <option>Presencial</option>
+            <option>Remoto</option>
+            <option>Híbrido</option>
+          </select>
+        </label>
+
         <label class="form-field full-row">
           Descrição da vaga
           <textarea name="description" required placeholder="Conte as principais atividades, requisitos e como será o dia a dia."></textarea>
+        </label>
+
+        <label class="form-field full-row">
+          Requisitos
+          <textarea name="requirements" required placeholder="Ex: experiência na função, disponibilidade de horário, conhecimento em ferramentas específicas."></textarea>
         </label>
 
         <label class="form-field full-row">
@@ -105,19 +121,23 @@
         </label>
 
         <div class="form-actions">
-          <p class="form-note">
-            MVP estático: este formulário salva a vaga no navegador para demonstrar o fluxo de aprovação.
-          </p>
+          <p class="form-note">Empresas podem publicar até 3 vagas grátis por dia. Publicações extras são liberadas automaticamente após pagamento de R$ 5,00.</p>
           <button class="primary-button" type="submit">Enviar para aprovação</button>
         </div>
       </form>
 
       <div class="success-card" id="successCard">
-        <strong>Vaga enviada para aprovação.</strong>
-        <p>Abra o Admin de Vagas para revisar, aprovar ou rejeitar a publicação.</p>
+        <strong id="publishStatusTitle">Vaga enviada para aprovação.</strong>
+        <p id="publishStatusText">Aguarde a revisão do Girassol Vagas.</p>
+        <div class="dialog-actions" id="paymentActions" hidden>
+          <a class="primary-button" id="checkoutLink" href="../precos/">Ir para pagamento</a>
+          <a class="outline-button" href="https://wa.me/5527988492573" target="_blank" rel="noreferrer">Suporte</a>
+        </div>
       </div>
     </main>
 
+    <script src="../js/firebase-config.js"></script>
+    <script src="../js/constants.js"></script>
     <script src="./publicar-vaga.js"></script>
   </body>
 </html>

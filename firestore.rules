@@ -1,0 +1,116 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function verifiedAdminEmail() {
+      return signedIn()
+        && request.auth.token.email_verified == true
+        && request.auth.token.email in ['sunflowercollectivegf@gmail.com'];
+    }
+
+    function isAdmin() {
+      return signedIn() && (request.auth.token.admin == true || verifiedAdminEmail());
+    }
+
+    function ownUser(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function ownCompany(companyId) {
+      return signedIn() && request.auth.uid == companyId;
+    }
+
+    function companyCanUpdateJob() {
+      return signedIn()
+        && resource.data.companyId == request.auth.uid
+        && request.resource.data.companyId == resource.data.companyId
+        && request.resource.data.paymentStatus == resource.data.paymentStatus
+        && resource.data.paymentStatus in ['gratis', 'paga']
+        && request.resource.data.status in ['pendente', 'pausada']
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          'title',
+          'companyName',
+          'city',
+          'salary',
+          'salaryLabel',
+          'contract',
+          'modality',
+          'level',
+          'category',
+          'whatsapp',
+          'description',
+          'requirements',
+          'benefits',
+          'tags',
+          'status',
+          'updatedAt'
+        ]);
+    }
+
+    match /users/{uid} {
+      allow get: if ownUser(uid) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if ownUser(uid)
+        && request.resource.data.role in ['candidate', 'company']
+        && request.resource.data.email == request.auth.token.email;
+      allow update: if (
+        ownUser(uid)
+        && !request.resource.data.diff(resource.data).changedKeys().hasAny(['role', 'admin'])
+      ) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /companies/{companyId} {
+      allow get: if ownCompany(companyId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if ownCompany(companyId)
+        && request.resource.data.ownerUid == request.auth.uid;
+      allow update: if (
+        ownCompany(companyId)
+        && request.resource.data.ownerUid == resource.data.ownerUid
+      ) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /jobs/{jobId} {
+      allow get, list: if resource.data.status == 'aprovada'
+        || (signedIn() && resource.data.companyId == request.auth.uid)
+        || isAdmin();
+      allow create: if isAdmin();
+      allow update: if isAdmin() || companyCanUpdateJob();
+      allow delete: if isAdmin() || (signedIn() && resource.data.companyId == request.auth.uid);
+    }
+
+    match /savedJobs/{savedJobId} {
+      allow get, list: if signedIn() && resource.data.userId == request.auth.uid;
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.jobId is string;
+      allow delete: if signedIn() && resource.data.userId == request.auth.uid;
+      allow update: if false;
+    }
+
+    match /payments/{paymentId} {
+      allow get, list: if isAdmin() || (signedIn() && resource.data.companyId == request.auth.uid);
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /companyDailyUsage/{usageId} {
+      allow get, list: if isAdmin() || (signedIn() && resource.data.companyId == request.auth.uid);
+      allow write: if isAdmin();
+    }
+
+    match /plans/{planId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -32,7 +32,8 @@
         <nav class="main-nav" aria-label="Navegação principal">
           <a href="./index.html">Início</a>
           <a href="#vagas">Vagas</a>
-          <a href="#sobre">Sobre o Projeto</a>
+          <a href="./sobre/">Como Funciona</a>
+          <a href="./precos/">Preços</a>
           <a href="#contato">Contato</a>
         </nav>
 
@@ -111,8 +112,11 @@
               <option>Teixeira de Freitas</option>
               <option>Nova Viçosa</option>
               <option>Mucuri</option>
-              <option>São Mateus</option>
               <option>Eunápolis</option>
+              <option>Itabatã</option>
+              <option>Medeiros Neto</option>
+              <option>Caravelas</option>
+              <option>Alcobaça</option>
             </select>
           </label>
 
@@ -137,9 +141,9 @@
 
             <fieldset>
               <legend>Modalidade</legend>
-              <label><input type="checkbox" name="mode" value="Presencial" /> Presencial</label>
-              <label><input type="checkbox" name="mode" value="Remoto" /> Remoto</label>
-              <label><input type="checkbox" name="mode" value="Híbrido" /> Híbrido</label>
+              <label><input type="checkbox" name="modality" value="Presencial" /> Presencial</label>
+              <label><input type="checkbox" name="modality" value="Remoto" /> Remoto</label>
+              <label><input type="checkbox" name="modality" value="Híbrido" /> Híbrido</label>
             </fieldset>
 
             <fieldset>
@@ -218,49 +222,9 @@
           </div>
 
           <fieldset>
-            <legend>Tipo de Contrato</legend>
-            <label><input type="checkbox" data-filter="contract" value="CLT" /> CLT</label>
-            <label><input type="checkbox" data-filter="contract" value="PJ" /> PJ</label>
-            <label><input type="checkbox" data-filter="contract" value="Freelancer" /> Freelancer</label>
-            <label><input type="checkbox" data-filter="contract" value="Estágio" /> Estágio</label>
-            <label><input type="checkbox" data-filter="contract" value="Temporário" /> Temporário</label>
-          </fieldset>
-
-          <fieldset>
-            <legend>Modalidade</legend>
-            <label><input type="checkbox" data-filter="mode" value="Presencial" /> Presencial</label>
-            <label><input type="checkbox" data-filter="mode" value="Remoto" /> Remoto</label>
-            <label><input type="checkbox" data-filter="mode" value="Híbrido" /> Híbrido</label>
-          </fieldset>
-
-          <fieldset>
-            <legend>Nível de Experiência</legend>
-            <label><input type="checkbox" data-filter="level" value="Estágio" /> Estágio</label>
-            <label><input type="checkbox" data-filter="level" value="Júnior" /> Júnior</label>
-            <label><input type="checkbox" data-filter="level" value="Pleno" /> Pleno</label>
-            <label><input type="checkbox" data-filter="level" value="Sênior" /> Sênior</label>
-          </fieldset>
-
-          <fieldset>
-            <legend>Faixa Salarial</legend>
-            <div class="filter-salary-row">
-              <label>
-                De
-                <select>
-                  <option>Mínimo</option>
-                  <option>R$ 1.500</option>
-                  <option>R$ 2.500</option>
-                </select>
-              </label>
-              <label>
-                Até
-                <select>
-                  <option>Máximo</option>
-                  <option>R$ 6.000</option>
-                  <option>R$ 10.000+</option>
-                </select>
-              </label>
-            </div>
+            <legend>Exibição</legend>
+            <label><input type="checkbox" data-filter="featured" value="Destaque" /> Somente destaques</label>
+            <label><input type="checkbox" data-filter="withSalary" value="salary" /> Apenas com salário</label>
           </fieldset>
 
           <fieldset>
@@ -271,18 +235,6 @@
             <label><input type="checkbox" data-filter="benefits" value="Home Office" /> Home Office</label>
             <label><input type="checkbox" data-filter="benefits" value="Horário Flexível" /> Horário Flexível</label>
           </fieldset>
-
-          <label class="filter-city">
-            <span>Cidades</span>
-            <select id="sideCitySelect">
-              <option value="">Todas as cidades</option>
-              <option>Posto da Mata</option>
-              <option>Teixeira de Freitas</option>
-              <option>Nova Viçosa</option>
-              <option>Mucuri</option>
-              <option>São Mateus</option>
-            </select>
-          </label>
 
           <button class="primary-button full" id="applyFilters" type="button">Aplicar Filtros</button>
         </aside>
@@ -333,10 +285,10 @@
             </span>
           </a>
           <p>As oportunidades do Extremo Sul florescem aqui.</p>
-          <div class="social-row" aria-label="Canais de contato">
-            <a href="https://wa.me/5500000000000" target="_blank" rel="noreferrer">W</a>
-            <a href="mailto:contato@girassolvagas.com.br">E</a>
-            <a href="./publicar-vaga/">+</a>
+          <div class="footer-contact-links" aria-label="Canais de contato">
+            <a href="https://wa.me/5527988492573" target="_blank" rel="noreferrer">WhatsApp</a>
+            <a href="mailto:sunflowercollectivegf@gmail.com">E-mail</a>
+            <a href="https://instagram.com/sunflowercollectivegf" target="_blank" rel="noreferrer">Instagram</a>
           </div>
         </div>
 
@@ -344,15 +296,25 @@
           <h3>Navegação</h3>
           <a href="./index.html">Início</a>
           <a href="#vagas">Vagas</a>
-          <a href="#sobre">Sobre o Projeto</a>
+          <a href="./minhas-vagas-salvas/">Minhas vagas salvas</a>
+          <a href="./login/">Entrar ou cadastrar</a>
+          <a href="./sobre/">Sobre o Girassol Vagas</a>
           <a href="#contato">Contato</a>
         </nav>
 
         <nav aria-label="Para empresas">
           <h3>Para Empresas</h3>
           <a href="./publicar-vaga/">Publicar Vaga</a>
-          <a href="./admin/vagas/">Admin de Vagas</a>
-          <a href="mailto:contato@girassolvagas.com.br">Anunciar</a>
+          <a href="./empresa/">Área da Empresa</a>
+          <a href="./precos/">Preços</a>
+          <a href="./admin/vagas/">Admin</a>
+        </nav>
+
+        <nav aria-label="Informações legais">
+          <h3>Informações</h3>
+          <a href="./termos/">Termos de uso</a>
+          <a href="./privacidade/">Política de privacidade</a>
+          <a href="./contato/">Contato</a>
         </nav>
 
         <form class="newsletter">
@@ -368,10 +330,27 @@
 
       <div class="footer-bottom">
         <span>© 2026 Girassol Vagas. Todos os direitos reservados.</span>
-        <span>Feito com sol para nossa região.</span>
+        <span>Feito para fortalecer nossa região.</span>
       </div>
     </footer>
 
+    <dialog class="app-dialog" id="jobDetailsDialog">
+      <button class="dialog-close" type="button" data-close-dialog aria-label="Fechar">×</button>
+      <div id="jobDetailsBody"></div>
+    </dialog>
+
+    <dialog class="app-dialog auth-dialog" id="loginRequiredDialog">
+      <button class="dialog-close" type="button" data-close-dialog aria-label="Fechar">×</button>
+      <h2>Entre para salvar vagas</h2>
+      <p>Crie uma conta gratuita de candidato para favoritar oportunidades e acessar suas vagas salvas depois.</p>
+      <div class="dialog-actions">
+        <a class="primary-button" href="./login/">Entrar ou cadastrar</a>
+        <button class="secondary-button" type="button" data-close-dialog>Agora não</button>
+      </div>
+    </dialog>
+
+    <script src="./js/firebase-config.js"></script>
+    <script src="./js/constants.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>

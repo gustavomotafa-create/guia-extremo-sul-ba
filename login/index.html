@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login | Girassol Vagas</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Pacifico&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="header-shell">
+        <a class="brand" href="../index.html" aria-label="Girassol Vagas">
+          <span class="brand-icon"><img src="../assets/sunflower-logo.svg" alt="" /></span>
+          <span><strong>Girassol</strong><small>Vagas</small></span>
+        </a>
+        <nav class="main-nav" aria-label="Navegação principal">
+          <a href="../index.html">Início</a>
+          <a href="../index.html#vagas">Vagas</a>
+          <a href="../sobre/">Como Funciona</a>
+          <a href="../precos/">Preços</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="page-shell">
+      <section class="page-hero">
+        <div>
+          <h1>Entrar no Girassol</h1>
+          <p>Acesse sua conta para salvar vagas, publicar oportunidades ou administrar o portal.</p>
+        </div>
+      </section>
+
+      <section class="form-card auth-card">
+        <div class="form-field full-row">
+          <label>
+            Tipo de conta
+            <select id="roleSelect">
+              <option value="candidate">Candidato</option>
+              <option value="company">Empresa</option>
+            </select>
+          </label>
+        </div>
+
+        <label class="form-field">
+          Nome
+          <input id="nameInput" type="text" placeholder="Seu nome ou nome da empresa" />
+        </label>
+
+        <label class="form-field">
+          E-mail
+          <input id="emailInput" type="email" autocomplete="email" required />
+        </label>
+
+        <label class="form-field">
+          Senha
+          <input id="passwordInput" type="password" autocomplete="current-password" required />
+        </label>
+
+        <div class="form-actions">
+          <button class="primary-button" id="signInButton" type="button">Entrar</button>
+          <button class="secondary-button" id="signUpButton" type="button">Criar conta</button>
+          <button class="outline-button" id="googleButton" type="button">Entrar com Google</button>
+        </div>
+
+        <div class="success-card full-row is-visible" id="authMessage">
+          <strong>Firebase necessário</strong>
+          <p>Para login real, preencha as chaves do Firebase em <code>js/firebase-config.js</code>.</p>
+        </div>
+      </section>
+    </main>
+
+    <script src="../js/firebase-config.js"></script>
+    <script src="./login.js"></script>
+  </body>
+</html>
