@@ -5,48 +5,60 @@ Plataforma regional para conectar candidatos, empresas e oportunidades no Extrem
 ## O que o site entrega
 
 - Visual premium em amarelo girassol, creme e marrom.
-- Busca rápida por cargo, categoria e cidade.
-- Busca avançada por salário, contrato, modalidade e nível.
+- Fundo global com pattern SVG de girassois, leve e discreto.
+- Busca rapida por cargo, categoria e cidade.
+- Busca avancada por salario, contrato, modalidade e nivel.
 - Cards de vagas com detalhes completos e candidatura por WhatsApp.
-- Favoritos com login e página "Minhas Vagas Salvas".
+- Favoritos com login e pagina "Minhas Vagas Salvas".
 - Cadastro/login de candidatos e empresas via Firebase Authentication.
-- Área da empresa para acompanhar, editar, pausar, excluir e pagar vagas.
-- Área da empresa com contador diário, histórico de pagamentos e edição completa.
-- Admin protegido com filtro por status, busca, aprovação, rejeição com motivo, edição completa e exclusão.
-- Upload de logo da empresa via Firebase Storage, com fallback automático para o ícone de girassol.
-- Publicação com aprovação manual: vagas novas não aparecem publicamente até aprovação.
-- Limite por empresa: 3 vagas grátis por dia; cada pagamento de R$ 5,00 libera mais 3 publicações extras no mesmo dia.
-- Base de pagamento automático via Mercado Pago, com webhook de confirmação.
+- Area da empresa para acompanhar, editar, pausar, excluir e pagar vagas.
+- Admin protegido para cadastrar vagas manualmente, aprovar, rejeitar, editar e excluir.
+- Origem interna da vaga: `origin/source = admin` ou `origin/source = company`.
+- Fallback automatico para o icone de girassol quando a vaga nao tem logo.
+- Publicacao com aprovacao manual: vagas novas nao aparecem publicamente ate aprovacao.
+- Limite por empresa: 3 vagas gratis por dia; cada pagamento de R$ 5,00 libera mais 3 publicacoes extras no mesmo dia.
+- Base de pagamento automatico via Mercado Pago, com webhook de confirmacao.
 
 ## Estrutura Firebase
 
-Coleções previstas:
+Colecoes previstas no Cloud Firestore:
 
 - `users`: perfis de candidatos, empresas e admin.
 - `companies`: empresas cadastradas.
 - `jobs`: vagas com status `pendente`, `aguardando_pagamento`, `aprovada`, `rejeitada` ou `pausada`.
 - `savedJobs`: vagas salvas por candidatos.
-- `payments`: histórico de pagamentos.
-- `companyDailyUsage`: controle diário de vagas grátis e créditos pagos por empresa.
-- `plans`: planos ou configurações comerciais futuras.
-- Firebase Storage: logos das empresas em `company-logos/{uid}/`.
+- `payments`: historico de pagamentos.
+- `companyDailyUsage`: controle diario de vagas gratis e creditos pagos por empresa.
+- `plans`: planos ou configuracoes comerciais futuras.
 
-## Configuração do front
+Firebase Storage esta preparado para uma fase futura, mas nao e publicado no deploy atual para evitar exigencia do plano Blaze apenas por Storage. Enquanto isso, os cards usam o icone padrao de girassol ou uma URL publica opcional de logo.
 
-O projeto já está apontado para o Firebase `girassol-vagas` em `js/firebase-config.js`:
+## Configuracao do front
 
-```js
-window.GIRASSOL_FIREBASE_CONFIG = {
-  apiKey: "...",
-  authDomain: "...",
-  projectId: "...",
-  storageBucket: "...",
-  messagingSenderId: "...",
-  appId: "...",
-};
+O arquivo versionado `js/firebase-config.js` fica sem chaves reais para evitar alertas de segredo no GitHub.
+
+Para desenvolvimento local, copie:
+
+```bash
+cp js/firebase-config.local.example.js js/firebase-config.local.js
 ```
 
-O admin principal está configurado em:
+Depois preencha `js/firebase-config.local.js` com a configuracao Web do Firebase. Esse arquivo esta no `.gitignore` e nao deve ser commitado.
+
+Tambem existe `.env.example` com os nomes esperados para ambientes de deploy.
+
+### Sobre Firebase Web API Key
+
+A Firebase Web API Key nao e uma senha privada como um token de servidor. Ela pode existir no front-end, mas deve ser protegida por:
+
+- Regras fortes do Firestore.
+- Dominios autorizados no Firebase Authentication.
+- Restricoes de API key no Google Cloud quando possivel.
+- Nenhum token privado no repositorio.
+
+Tokens privados, como `MERCADO_PAGO_ACCESS_TOKEN`, devem ficar apenas em secrets do Firebase/GitHub ou em `.env` local ignorado pelo Git.
+
+O admin principal esta configurado em:
 
 ```js
 window.GIRASSOL_ADMIN_EMAILS = ["sunflowercollectivegf@gmail.com"];
@@ -54,33 +66,40 @@ window.GIRASSOL_ADMIN_EMAILS = ["sunflowercollectivegf@gmail.com"];
 
 Para acesso forte ao admin, use uma conta Google com esse e-mail verificado ou defina custom claim `admin: true` no Firebase Authentication.
 
-## Configuração das Functions
+## Configuracao das Functions
 
 Instale e publique com Firebase CLI:
 
 ```bash
 cd functions
 npm install
-firebase deploy --only firestore,storage,functions,hosting
+cd ..
+firebase deploy --only firestore,functions,hosting
 ```
 
-Configure o Mercado Pago:
+O deploy atual nao publica Storage. Se estiver usando GitHub Pages para hosting, publique apenas Firestore/Functions no Firebase:
+
+```bash
+firebase deploy --only firestore,functions
+```
+
+Configure o Mercado Pago como secret:
 
 ```bash
 firebase functions:secrets:set MERCADO_PAGO_ACCESS_TOKEN
 ```
 
-Parâmetros usados pelas Functions:
+Parametros usados pelas Functions:
 
 - `MERCADO_PAGO_ACCESS_TOKEN`: token privado do Mercado Pago.
-- `PUBLIC_SITE_URL`: URL pública do site, por exemplo `https://gustavomotafa-create.github.io/guia-extremo-sul-ba`.
-- `PUBLIC_FUNCTIONS_URL`: opcional, URL base das Functions. Se vazio, o código monta pela região `southamerica-east1`.
+- `PUBLIC_SITE_URL`: URL publica do site, por exemplo `https://gustavomotafa-create.github.io/guia-extremo-sul-ba`.
+- `PUBLIC_FUNCTIONS_URL`: opcional, URL base das Functions. Se vazio, o codigo monta pela regiao `southamerica-east1`.
 
-Os parâmetros `PUBLIC_SITE_URL` e `PUBLIC_FUNCTIONS_URL` podem ser preenchidos quando o Firebase CLI pedir no deploy, ou via arquivo `.env` dentro de `functions/`.
+Os parametros `PUBLIC_SITE_URL` e `PUBLIC_FUNCTIONS_URL` podem ser preenchidos quando o Firebase CLI pedir no deploy, ou via arquivo `.env` dentro de `functions/`.
 
-## Publicação no GitHub Pages
+## Publicacao no GitHub Pages
 
-O site está pronto para GitHub Pages usando:
+O site esta pronto para GitHub Pages usando:
 
 - Source: `Deploy from a branch`
 - Branch: `main`
@@ -90,6 +109,8 @@ URL esperada:
 
 `https://gustavomotafa-create.github.io/guia-extremo-sul-ba/`
 
-## Observação
+Para usar Firebase no GitHub Pages sem commitar a config real, injete `js/firebase-config.local.js` no build/deploy a partir de GitHub Secrets, ou publique o site pelo Firebase Hosting a partir de um ambiente local seguro.
 
-O código não usa vagas demonstrativas. A home mostra apenas vagas aprovadas vindas do Firestore.
+## Observacao
+
+O codigo nao usa vagas demonstrativas. A home mostra apenas vagas aprovadas vindas do Firestore.

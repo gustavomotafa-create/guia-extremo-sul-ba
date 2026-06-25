@@ -22,6 +22,10 @@
           <a href="../sobre/">Como Funciona</a>
           <a href="../precos/">Preços</a>
         </nav>
+        <div class="header-actions">
+          <a class="primary-button header-button" href="../publicar-vaga/">+ Publicar Vaga</a>
+          <a class="secondary-button header-login" href="../login/" data-auth-link data-login-url="../login/" data-account-url="../minhas-vagas-salvas/" data-company-url="../empresa/" data-admin-url="../admin/vagas/">Entrar</a>
+        </div>
       </div>
     </header>
 
@@ -33,46 +37,63 @@
         </div>
       </section>
 
-      <section class="form-card auth-card">
-        <div class="form-field full-row">
-          <label>
+      <section class="auth-card">
+        <div class="auth-tabs" role="tablist" aria-label="Entrar ou criar conta">
+          <button class="is-active" id="loginTab" type="button" data-auth-tab="login">Entrar</button>
+          <button id="signupTab" type="button" data-auth-tab="signup">Criar conta</button>
+        </div>
+
+        <form class="form-card auth-form" id="loginForm">
+          <label class="form-field full-row">
+            E-mail
+            <input id="loginEmail" type="email" autocomplete="email" placeholder="seuemail@exemplo.com" required />
+          </label>
+          <label class="form-field full-row">
+            Senha
+            <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Sua senha" required />
+          </label>
+          <div class="form-actions">
+            <button class="primary-button" id="signInButton" type="submit">Entrar</button>
+            <button class="outline-button" id="googleLoginButton" type="button">Entrar com Google</button>
+          </div>
+        </form>
+
+        <form class="form-card auth-form" id="signupForm" hidden>
+          <label class="form-field full-row">
             Tipo de conta
             <select id="roleSelect">
               <option value="candidate">Candidato</option>
               <option value="company">Empresa</option>
             </select>
           </label>
-        </div>
+          <label class="form-field">
+            Nome
+            <input id="nameInput" type="text" placeholder="Seu nome ou nome da empresa" />
+          </label>
+          <label class="form-field">
+            E-mail
+            <input id="signupEmail" type="email" autocomplete="email" placeholder="seuemail@exemplo.com" required />
+          </label>
+          <label class="form-field">
+            Senha
+            <input id="signupPassword" type="password" autocomplete="new-password" placeholder="Mínimo de 6 caracteres" required />
+          </label>
+          <div class="form-actions">
+            <button class="primary-button" id="signUpButton" type="submit">Criar conta</button>
+            <button class="outline-button" id="googleSignupButton" type="button">Criar com Google</button>
+          </div>
+        </form>
 
-        <label class="form-field">
-          Nome
-          <input id="nameInput" type="text" placeholder="Seu nome ou nome da empresa" />
-        </label>
-
-        <label class="form-field">
-          E-mail
-          <input id="emailInput" type="email" autocomplete="email" required />
-        </label>
-
-        <label class="form-field">
-          Senha
-          <input id="passwordInput" type="password" autocomplete="current-password" required />
-        </label>
-
-        <div class="form-actions">
-          <button class="primary-button" id="signInButton" type="button">Entrar</button>
-          <button class="secondary-button" id="signUpButton" type="button">Criar conta</button>
-          <button class="outline-button" id="googleButton" type="button">Entrar com Google</button>
-        </div>
-
-        <div class="success-card full-row is-visible" id="authMessage">
-          <strong>Firebase necessário</strong>
-          <p>Para login real, preencha as chaves do Firebase em <code>js/firebase-config.js</code>.</p>
+        <div class="success-card is-visible" id="authMessage">
+          <strong>Login pronto</strong>
+          <p>Entre com e-mail e senha ou use sua conta Google.</p>
         </div>
       </section>
     </main>
 
     <script src="../js/firebase-config.js"></script>
+    <script src="../js/firebase-config.local.js"></script>
+    <script src="../js/header-auth.js"></script>
     <script src="./login.js"></script>
   </body>
 </html>

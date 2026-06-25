@@ -33,6 +33,15 @@
         </nav>
         <div class="header-actions">
           <a class="primary-button" href="../empresa/">Área da Empresa</a>
+          <a
+            class="secondary-button header-login"
+            href="../login/"
+            data-auth-link
+            data-login-url="../login/"
+            data-account-url="../minhas-vagas-salvas/"
+            data-company-url="../empresa/"
+            data-admin-url="../admin/vagas/"
+          >Entrar</a>
         </div>
       </div>
     </header>
@@ -107,14 +116,9 @@
 
         <label class="form-field full-row">
           Logo da empresa
-          <input id="logoInput" name="logo" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" />
-          <span class="form-note">Opcional. Se não enviar, a vaga usa automaticamente o ícone de girassol.</span>
+          <input name="logoUrl" type="url" placeholder="Opcional: cole uma URL pública do logo" />
+          <span class="form-note">Se ficar vazio, a vaga usa automaticamente o ícone de girassol.</span>
         </label>
-
-        <div class="logo-preview full-row" id="logoPreview" hidden>
-          <img id="logoPreviewImage" src="../assets/sunflower-logo.svg" alt="" />
-          <span>Prévia do logo</span>
-        </div>
 
         <label class="form-field full-row">
           Descrição da vaga
@@ -148,7 +152,9 @@
     </main>
 
     <script src="../js/firebase-config.js"></script>
+    <script src="../js/firebase-config.local.js"></script>
     <script src="../js/constants.js"></script>
+    <script src="../js/header-auth.js"></script>
     <script src="./publicar-vaga.js"></script>
   </body>
 </html>

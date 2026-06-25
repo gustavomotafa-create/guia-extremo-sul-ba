@@ -3,4 +3,11 @@ Thumbs.db
 node_modules/
 dist/
 .env
-.env.local
+.env.*
+!.env.example
+functions/.env
+functions/.env.*
+functions/.runtimeconfig.json
+js/firebase-config.local.js
+firebase-debug.log
+firebase-debug.*.log

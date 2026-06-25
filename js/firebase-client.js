@@ -11,20 +11,18 @@ export function getContacts() {
   return window.GIRASSOL_CONTACTS || {
     whatsapp: "5527988492573",
     email: "sunflowercollectivegf@gmail.com",
-    instagram: "sunflowercollectivegf",
   };
 }
 
 async function loadSdk() {
-  const [appSdk, authSdk, firestoreSdk, functionsSdk, storageSdk] = await Promise.all([
+  const [appSdk, authSdk, firestoreSdk, functionsSdk] = await Promise.all([
     import(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-app.js`),
     import(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-auth.js`),
     import(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-firestore.js`),
     import(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-functions.js`),
-    import(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-storage.js`),
   ]);
 
-  return { appSdk, authSdk, firestoreSdk, functionsSdk, storageSdk };
+  return { appSdk, authSdk, firestoreSdk, functionsSdk };
 }
 
 export async function getServices() {
@@ -32,14 +30,13 @@ export async function getServices() {
 
   if (!servicesPromise) {
     servicesPromise = (async () => {
-      const { appSdk, authSdk, firestoreSdk, functionsSdk, storageSdk } = await loadSdk();
+      const { appSdk, authSdk, firestoreSdk, functionsSdk } = await loadSdk();
       const app = appSdk.initializeApp(window.GIRASSOL_FIREBASE_CONFIG);
       const auth = authSdk.getAuth(app);
       const db = firestoreSdk.getFirestore(app);
       const functions = functionsSdk.getFunctions(app, "southamerica-east1");
-      const storage = storageSdk.getStorage(app);
 
-      return { app, auth, db, functions, storage, authSdk, firestoreSdk, functionsSdk, storageSdk };
+      return { app, auth, db, functions, authSdk, firestoreSdk, functionsSdk };
     })();
   }
 
@@ -203,20 +200,6 @@ export async function submitJobWithQuota(payload) {
 
 export async function createCheckout(jobId) {
   return callFunction("createPublicationCheckout", { jobId });
-}
-
-export async function uploadCompanyLogo(file, uid) {
-  const services = await getServices();
-  if (!services) throw new Error("Configure o Firebase Storage para enviar logos.");
-  if (!file || !uid) return "";
-
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-").slice(-80);
-  const path = `company-logos/${uid}/${Date.now()}-${safeName}`;
-  const storageRef = services.storageSdk.ref(services.storage, path);
-  const snapshot = await services.storageSdk.uploadBytes(storageRef, file, {
-    contentType: file.type || "image/png",
-  });
-  return services.storageSdk.getDownloadURL(snapshot.ref);
 }
 
 export async function getCurrentUserWithProfile() {

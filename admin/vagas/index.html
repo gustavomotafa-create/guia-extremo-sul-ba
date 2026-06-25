@@ -32,6 +32,15 @@
         </nav>
         <div class="header-actions">
           <a class="primary-button" href="../../publicar-vaga/">+ Publicar Vaga</a>
+          <a
+            class="secondary-button header-login"
+            href="../../login/"
+            data-auth-link
+            data-login-url="../../login/"
+            data-account-url="../../minhas-vagas-salvas/"
+            data-company-url="../../empresa/"
+            data-admin-url="../../admin/vagas/"
+          >Entrar</a>
         </div>
       </div>
     </header>
@@ -66,6 +75,7 @@
           Buscar
           <input id="adminSearch" type="search" placeholder="Cargo, empresa ou cidade" />
         </label>
+        <button class="primary-button" id="newJobButton" type="button">+ Cadastrar vaga manual</button>
       </section>
 
       <section class="admin-list" id="adminList"></section>
@@ -73,7 +83,7 @@
 
     <dialog class="app-dialog edit-dialog" id="editJobDialog">
       <button class="dialog-close" type="button" data-close-dialog aria-label="Fechar">×</button>
-      <h2>Editar vaga</h2>
+      <h2 id="editDialogTitle">Editar vaga</h2>
       <form class="form-card compact-form" id="editJobForm">
         <input type="hidden" name="id" />
         <label class="form-field">
@@ -165,7 +175,9 @@
     </dialog>
 
     <script src="../../js/firebase-config.js"></script>
+    <script src="../../js/firebase-config.local.js"></script>
     <script src="../../js/constants.js"></script>
+    <script src="../../js/header-auth.js"></script>
     <script src="./admin.js"></script>
   </body>
 </html>

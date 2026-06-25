@@ -131,6 +131,8 @@ function buildJobPayload(data, auth, quota) {
     status: quota.status,
     paymentStatus: quota.paymentStatus,
     quotaType: quota.quotaType,
+    origin: quota.origin || "company",
+    source: quota.origin || "company",
     dateKey: quota.dateKey,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -222,6 +224,32 @@ async function createMercadoPagoPreference({ auth, companyId, dateKey, jobId = "
 exports.createJobDraft = onCall({ region: REGION, secrets: [mercadoPagoAccessToken] }, async (request) => {
   const company = await assertCompany(request.auth);
   const dateKey = todayInBahia();
+  const isAdminOrigin = company.role === "admin" || isAdminAuth(request.auth);
+  if (isAdminOrigin) {
+    const jobRef = db.collection("jobs").doc();
+    const status = cleanString(request.data?.status, "aprovada");
+    const jobPayload = buildJobPayload(request.data || {}, request.auth, {
+      status: ["pendente", "aprovada", "rejeitada", "pausada"].includes(status) ? status : "aprovada",
+      paymentStatus: "gratis",
+      quotaType: "manual",
+      origin: "admin",
+      dateKey,
+    });
+
+    if (jobPayload.status === "aprovada") {
+      jobPayload.publishedAt = admin.firestore.FieldValue.serverTimestamp();
+    }
+
+    await jobRef.set(jobPayload);
+    return {
+      jobId: jobRef.id,
+      status: jobPayload.status,
+      paymentStatus: jobPayload.paymentStatus,
+      origin: "admin",
+      requiresPayment: false,
+    };
+  }
+
   const usageRef = db.collection("companyDailyUsage").doc(`${company.uid}_${dateKey}`);
   const jobRef = db.collection("jobs").doc();
   let requiresPayment = false;
@@ -236,6 +264,7 @@ exports.createJobDraft = onCall({ region: REGION, secrets: [mercadoPagoAccessTok
       status: "pendente",
       paymentStatus: "gratis",
       quotaType: "gratis",
+      origin: "company",
       dateKey,
     };
     const usagePatch = {
@@ -247,7 +276,7 @@ exports.createJobDraft = onCall({ region: REGION, secrets: [mercadoPagoAccessTok
     if (freeUsed < FREE_DAILY_LIMIT) {
       usagePatch.freeUsed = admin.firestore.FieldValue.increment(1);
     } else if (paidCredits > 0) {
-      quota = { status: "pendente", paymentStatus: "paga", quotaType: "paga", dateKey };
+      quota = { status: "pendente", paymentStatus: "paga", quotaType: "paga", origin: "company", dateKey };
       usagePatch.paidCredits = admin.firestore.FieldValue.increment(-1);
       usagePatch.paidUsed = admin.firestore.FieldValue.increment(1);
     } else {
@@ -255,6 +284,7 @@ exports.createJobDraft = onCall({ region: REGION, secrets: [mercadoPagoAccessTok
         status: "aguardando_pagamento",
         paymentStatus: "aguardando_pagamento",
         quotaType: "paga",
+        origin: "company",
         dateKey,
       };
       requiresPayment = true;

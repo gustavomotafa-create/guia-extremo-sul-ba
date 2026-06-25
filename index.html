@@ -42,6 +42,15 @@
             <span class="button-plus">+</span>
             Publicar Vaga
           </a>
+          <a
+            class="secondary-button header-login"
+            href="./login/"
+            data-auth-link
+            data-login-url="./login/"
+            data-account-url="./minhas-vagas-salvas/"
+            data-company-url="./empresa/"
+            data-admin-url="./admin/vagas/"
+          >Entrar</a>
           <button class="sun-toggle" type="button" aria-label="Tema claro">
             <span></span>
           </button>
@@ -288,7 +297,6 @@
           <div class="footer-contact-links" aria-label="Canais de contato">
             <a href="https://wa.me/5527988492573" target="_blank" rel="noreferrer">WhatsApp</a>
             <a href="mailto:sunflowercollectivegf@gmail.com">E-mail</a>
-            <a href="https://instagram.com/sunflowercollectivegf" target="_blank" rel="noreferrer">Instagram</a>
           </div>
         </div>
 
@@ -350,7 +358,9 @@
     </dialog>
 
     <script src="./js/firebase-config.js"></script>
+    <script src="./js/firebase-config.local.js"></script>
     <script src="./js/constants.js"></script>
+    <script src="./js/header-auth.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>

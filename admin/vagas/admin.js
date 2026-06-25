@@ -3,13 +3,16 @@ const adminList = document.querySelector("#adminList");
 const adminToolbar = document.querySelector("#adminToolbar");
 const statusFilter = document.querySelector("#statusFilter");
 const adminSearch = document.querySelector("#adminSearch");
+const newJobButton = document.querySelector("#newJobButton");
 const editDialog = document.querySelector("#editJobDialog");
+const editDialogTitle = document.querySelector("#editDialogTitle");
 const editForm = document.querySelector("#editJobForm");
 
 let firebaseApi;
 let services;
 let allJobs = [];
 let unsubscribeJobs;
+let currentAdminUser;
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -43,6 +46,11 @@ function splitBenefits(value) {
 function formatBenefits(benefits) {
   if (Array.isArray(benefits)) return benefits.join(", ");
   return benefits || "Não informado";
+}
+
+function originLabel(job) {
+  const origin = job.origin || job.source || "company";
+  return origin === "admin" ? "Admin" : "Empresa";
 }
 
 function renderGuard(title, text, actionHtml = "") {
@@ -88,6 +96,7 @@ function renderJobs() {
           <div class="admin-card-header">
             <span class="tag">${escapeHtml(job.status || "pendente")}</span>
             <span class="tag ${job.paymentStatus === "paga" ? "green" : ""}">${escapeHtml(job.paymentStatus || "gratis")}</span>
+            <span class="tag blue">Origem: ${escapeHtml(originLabel(job))}</span>
           </div>
           <h3>${escapeHtml(job.title || "Vaga sem título")}</h3>
           <p><strong>${escapeHtml(job.companyName || "Empresa não informada")}</strong> · ${escapeHtml(job.city || "Cidade não informada")} · ${escapeHtml(job.contract || "Contrato não informado")} · ${escapeHtml(job.salaryLabel || "Salário a combinar")}</p>
@@ -132,11 +141,31 @@ async function deleteJob(id) {
   await firestoreSdk.deleteDoc(firestoreSdk.doc(db, "jobs", id));
 }
 
+async function createJob(payload) {
+  const { db, firestoreSdk } = services;
+  await firestoreSdk.addDoc(firestoreSdk.collection(db, "jobs"), payload);
+}
+
+function openCreateDialog() {
+  fillSelects();
+  editDialogTitle.textContent = "Cadastrar vaga manual";
+  editForm.reset();
+  editForm.elements.id.value = "";
+  editForm.elements.category.value = "Serviços Gerais";
+  editForm.elements.contract.value = "CLT";
+  editForm.elements.modality.value = "Presencial";
+  editForm.elements.level.value = "Júnior";
+  editForm.elements.status.value = "aprovada";
+  editForm.elements.salaryLabel.value = "A combinar";
+  editDialog.showModal();
+}
+
 function openEditDialog(id) {
   const job = allJobs.find((item) => item.id === id);
   if (!job) return;
 
   fillSelects();
+  editDialogTitle.textContent = "Editar vaga";
   editForm.elements.id.value = job.id;
   editForm.elements.companyName.value = job.companyName || "";
   editForm.elements.title.value = job.title || "";
@@ -156,7 +185,7 @@ function openEditDialog(id) {
   editDialog.showModal();
 }
 
-function collectEditPayload() {
+function collectEditPayload({ isCreate = false } = {}) {
   const formData = new FormData(editForm);
   const contract = String(formData.get("contract") || "").trim();
   const modality = String(formData.get("modality") || "").trim();
@@ -183,6 +212,16 @@ function collectEditPayload() {
     tags: [modality, contract].filter(Boolean),
     updatedAt: services.firestoreSdk.serverTimestamp(),
   };
+
+  if (isCreate) {
+    payload.createdAt = services.firestoreSdk.serverTimestamp();
+    payload.companyId = currentAdminUser?.uid || "admin";
+    payload.companyOwnerUid = currentAdminUser?.uid || "admin";
+    payload.paymentStatus = "gratis";
+    payload.quotaType = "manual";
+    payload.origin = "admin";
+    payload.source = "admin";
+  }
 
   if (status === "aprovada") {
     payload.publishedAt = services.firestoreSdk.serverTimestamp();
@@ -233,7 +272,11 @@ editForm.addEventListener("submit", async (event) => {
 
   try {
     const id = editForm.elements.id.value;
-    await updateJob(id, collectEditPayload());
+    if (id) {
+      await updateJob(id, collectEditPayload());
+    } else {
+      await createJob(collectEditPayload({ isCreate: true }));
+    }
     editDialog.close();
   } catch (error) {
     alert(error.message || "Não foi possível salvar a vaga.");
@@ -243,6 +286,8 @@ editForm.addEventListener("submit", async (event) => {
 [statusFilter, adminSearch].forEach((field) => {
   field.addEventListener("input", renderJobs);
 });
+
+newJobButton.addEventListener("click", openCreateDialog);
 
 editDialog.addEventListener("click", (event) => {
   if (event.target.matches("[data-close-dialog]")) editDialog.close();
@@ -283,6 +328,7 @@ async function init() {
 
     adminGuard.hidden = true;
     adminToolbar.hidden = false;
+    currentAdminUser = user;
     loadJobs();
   });
 }
