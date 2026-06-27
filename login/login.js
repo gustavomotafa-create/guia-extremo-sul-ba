@@ -78,13 +78,14 @@ async function runAuth(action) {
   try {
     if (!firebaseApi?.isFirebaseConfigured()) {
       setMessage(
-        "Firebase aguardando configuração local",
-        "Crie o arquivo js/firebase-config.local.js com as chaves do Firebase ou faça o deploy pelo Firebase Hosting com esse arquivo local.",
+        "Firebase aguardando configuração",
+        "Em produção, confira o js/firebase-config.js. Em ambiente local, você pode usar js/firebase-config.local.js.",
       );
       return;
     }
 
-    await action();
+    const result = await action();
+    if (result === null) return;
     goNext();
   } catch (error) {
     setMessage("Não foi possível concluir", friendlyError(error));
@@ -134,9 +135,21 @@ googleSignupButton.addEventListener("click", () => {
 });
 
 async function init() {
-  firebaseApi = await import("../js/firebase-client.js");
-  if (firebaseApi.isFirebaseConfigured()) {
-    setMessage("Login pronto", "Entre com e-mail e senha ou use sua conta Google.");
+  try {
+    firebaseApi = await import("../js/firebase-client.js");
+    if (firebaseApi.isFirebaseConfigured()) {
+      setMessage("Preparando login", "Carregando Firebase Authentication...");
+      await firebaseApi.getServices();
+      const redirectedUser = await firebaseApi.completeGoogleRedirect();
+      if (redirectedUser) {
+        goNext();
+        return;
+      }
+
+      setMessage("Login pronto", "Entre com e-mail e senha ou use sua conta Google.");
+    }
+  } catch (error) {
+    setMessage("Não foi possível preparar o login", friendlyError(error));
   }
 }
 

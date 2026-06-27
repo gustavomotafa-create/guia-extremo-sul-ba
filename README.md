@@ -35,7 +35,7 @@ Firebase Storage esta preparado para uma fase futura, mas nao e publicado no dep
 
 ## Configuracao do front
 
-O arquivo versionado `js/firebase-config.js` fica sem chaves reais para evitar alertas de segredo no GitHub.
+O arquivo versionado `js/firebase-config.js` contem a configuracao Web publica usada em producao e no GitHub Pages.
 
 Para desenvolvimento local, copie:
 
@@ -43,7 +43,7 @@ Para desenvolvimento local, copie:
 cp js/firebase-config.local.example.js js/firebase-config.local.js
 ```
 
-Depois preencha `js/firebase-config.local.js` com a configuracao Web do Firebase. Esse arquivo esta no `.gitignore` e nao deve ser commitado.
+Depois preencha `js/firebase-config.local.js` se quiser sobrescrever a configuracao em `localhost`, `127.0.0.1`, `::1` ou `file://`. Esse arquivo esta no `.gitignore`, nao deve ser commitado e nao e carregado em producao.
 
 Tambem existe `.env.example` com os nomes esperados para ambientes de deploy.
 
@@ -109,7 +109,7 @@ URL esperada:
 
 `https://gustavomotafa-create.github.io/guia-extremo-sul-ba/`
 
-Para usar Firebase no GitHub Pages sem commitar a config real, injete `js/firebase-config.local.js` no build/deploy a partir de GitHub Secrets, ou publique o site pelo Firebase Hosting a partir de um ambiente local seguro.
+No GitHub Pages, o site usa somente `js/firebase-config.js`. O arquivo `js/firebase-config.local.js` e ignorado em producao para evitar erro 404 e manter a configuracao local separada.
 
 ## Observacao
 

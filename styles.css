@@ -942,17 +942,20 @@ input[type="checkbox"] {
 }
 
 .site-footer {
-  background: linear-gradient(180deg, #fffaf0 0%, #fffdf8 100%);
+  background:
+    radial-gradient(circle at 10% 0%, rgba(255, 183, 3, 0.16), transparent 16rem),
+    linear-gradient(180deg, rgba(255, 250, 240, 0.98) 0%, rgba(255, 253, 248, 0.98) 100%);
   border-top: 1px solid var(--line);
+  box-shadow: 0 -18px 44px rgba(67, 27, 8, 0.08);
 }
 
 .footer-grid {
   display: grid;
   grid-template-columns: minmax(260px, 1.35fr) repeat(3, minmax(150px, 0.7fr));
-  gap: 36px;
+  gap: 44px;
   width: min(1160px, calc(100% - 64px));
   margin: 0 auto;
-  padding: 38px 0 32px;
+  padding: 44px 0 36px;
 }
 
 .footer-brand .brand-icon,
@@ -961,38 +964,48 @@ input[type="checkbox"] {
   height: 52px;
 }
 
+.footer-brand {
+  margin-bottom: 14px;
+}
+
 .footer-brand strong {
   font-size: 1.55rem;
 }
 
 .site-footer p {
-  color: var(--brown);
+  max-width: 310px;
+  color: var(--brown-dark);
   line-height: 1.55;
+  font-size: 0.95rem;
+  font-weight: 600;
 }
 
 .site-footer nav,
 .newsletter {
   display: grid;
   align-content: start;
-  gap: 11px;
+  gap: 12px;
+  padding-top: 8px;
 }
 
 .site-footer h3 {
-  margin: 0 0 6px;
+  margin: 0 0 8px;
   color: var(--brown-dark);
-  font-size: 0.98rem;
+  font-size: 1rem;
+  letter-spacing: -0.01em;
 }
 
 .site-footer a {
-  color: var(--brown-dark);
+  width: fit-content;
+  color: var(--brown);
   font-size: 0.92rem;
-  font-weight: 750;
-  transition: color 180ms ease, transform 180ms ease;
+  font-weight: 800;
+  transition: color 180ms ease, transform 180ms ease, background 180ms ease;
 }
 
 .site-footer a:hover {
   color: var(--gold-deep);
-  transform: translateX(2px);
+  transform: translateX(4px);
 }
 
 .social-row {
@@ -1011,14 +1024,15 @@ input[type="checkbox"] {
 .footer-contact-links a {
   display: inline-flex;
   align-items: center;
-  min-height: 34px;
-  padding: 0 12px;
-  border: 1px solid var(--line);
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid rgba(170, 97, 0, 0.22);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.74);
-  color: var(--brown);
+  background: rgba(255, 255, 255, 0.86);
+  color: var(--brown-dark);
   font-size: 0.84rem;
-  font-weight: 800;
+  font-weight: 900;
+  box-shadow: 0 8px 18px rgba(67, 27, 8, 0.06);
 }
 
 .footer-contact-links a::before {
@@ -1028,6 +1042,11 @@ input[type="checkbox"] {
   margin-right: 8px;
   border-radius: 50%;
   background: var(--sun);
+}
+
+.footer-contact-links a:hover {
+  background: #fff6de;
+  transform: translateY(-2px);
 }
 
 .social-row a {
@@ -1065,10 +1084,11 @@ input[type="checkbox"] {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 16px max(32px, calc((100vw - 1160px) / 2));
+  padding: 18px max(32px, calc((100vw - 1160px) / 2));
   background: linear-gradient(90deg, var(--brown-dark), #5a2107);
   color: #fff2d8;
   font-size: 0.86rem;
+  font-weight: 650;
 }
 
 .page-shell {
@@ -1270,6 +1290,60 @@ input[type="checkbox"] {
 
 .auth-card {
   max-width: 760px;
+  margin: 0 auto;
+  padding: 16px;
+  border: 1px solid rgba(121, 70, 28, 0.14);
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(255, 183, 3, 0.18), transparent 12rem),
+    rgba(255, 253, 248, 0.96);
+  box-shadow: var(--shadow-float);
+  backdrop-filter: blur(8px);
+}
+
+.auth-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 7px;
+  border: 1px solid rgba(170, 97, 0, 0.16);
+  border-radius: 12px;
+  background: rgba(255, 248, 234, 0.82);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.auth-tabs button {
+  min-height: 50px;
+  border: 0;
+  border-radius: 10px;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--brown);
+  font-weight: 900;
+  box-shadow: none;
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    background 180ms ease,
+    color 180ms ease;
+}
+
+.auth-tabs button:hover {
+  transform: translateY(-1px);
+  background: #fffdf8;
+  box-shadow: 0 10px 22px rgba(67, 27, 8, 0.08);
+}
+
+.auth-tabs button.is-active {
+  background: linear-gradient(135deg, var(--sun), var(--sun-bright));
+  color: var(--brown-dark);
+  box-shadow: 0 12px 26px rgba(255, 183, 3, 0.24);
+}
+
+.auth-card .form-card {
+  border-color: rgba(234, 220, 199, 0.78);
+  box-shadow: 0 14px 34px rgba(67, 27, 8, 0.07);
 }
 
 .admin-card {
