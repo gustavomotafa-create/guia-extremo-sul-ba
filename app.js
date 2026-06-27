@@ -44,7 +44,7 @@ function escapeAttr(value) {
 function safeLogoUrl(value) {
   const url = String(value || "");
   if (url.startsWith("https://") || url.startsWith("http://") || url.startsWith("./assets/")) return url;
-  return "./assets/sunflower-logo.svg";
+  return "./assets/girassol-logo.png";
 }
 
 function currencyValue(value) {
@@ -96,7 +96,7 @@ function formatJob(rawJob) {
     publishedAtLabel: rawJob.publishedAtLabel || "Publicado recentemente",
     tags: rawJob.tags || [modality, rawJob.contract || "Vaga"],
     mark: rawJob.mark || "light",
-    logoUrl: rawJob.logoUrl || "./assets/sunflower-logo.svg",
+    logoUrl: rawJob.logoUrl || "./assets/girassol-logo.png",
     status: rawJob.status || "aprovada",
   };
 }

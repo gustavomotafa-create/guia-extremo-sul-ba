@@ -10,6 +10,10 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Pacifico&display=swap"
       rel="stylesheet"
     />
+    <link rel="icon" href="../../favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" sizes="32x32" href="../../assets/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="../../assets/favicon-16x16.png" />
+    <link rel="apple-touch-icon" href="../../assets/girassol-logo.png" />
     <link rel="stylesheet" href="../../styles.css" />
   </head>
   <body>
@@ -17,7 +21,7 @@
       <div class="header-shell">
         <a class="brand" href="../../index.html" aria-label="Girassol Vagas">
           <span class="brand-icon">
-            <img src="../../assets/sunflower-logo.svg" alt="" />
+            <img src="../../assets/girassol-logo.png" alt="" />
           </span>
           <span>
             <strong>Girassol</strong>
@@ -26,12 +30,10 @@
         </a>
         <nav class="main-nav" aria-label="Navegação principal">
           <a href="../../index.html">Início</a>
-          <a href="../../index.html#vagas">Vagas</a>
-          <a href="../../sobre/">Como Funciona</a>
-          <a href="../../publicar-vaga/">Publicar Vaga</a>
+          <a href="../../minhas-vagas-salvas/">Minhas vagas salvas</a>
+          <a href="../../precos/">Preços</a>
         </nav>
         <div class="header-actions">
-          <a class="primary-button" href="../../publicar-vaga/">+ Publicar Vaga</a>
           <a
             class="secondary-button header-login"
             href="../../login/"
@@ -40,7 +42,11 @@
             data-account-url="../../minhas-vagas-salvas/"
             data-company-url="../../empresa/"
             data-admin-url="../../admin/vagas/"
-          >Entrar</a>
+          >Entrar / Cadastrar</a>
+          <a class="primary-button header-button" href="../../publicar-vaga/">
+            <span class="button-plus">+</span>
+            Publicar Vaga
+          </a>
         </div>
       </div>
     </header>

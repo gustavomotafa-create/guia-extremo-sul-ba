@@ -7,11 +7,17 @@
     links.forEach((link) => {
       link.textContent = label;
       link.href = href;
+      link.dataset.mobileLabel = {
+        "Entrar / Cadastrar": "Entrar",
+        "Minha Conta": "Conta",
+        "Área da Empresa": "Empresa",
+        Admin: "Admin",
+      }[label] || label;
     });
   }
 
   const fallback = links[0];
-  setLinks({ label: "Entrar", href: fallback.dataset.loginUrl || "./login/" });
+  setLinks({ label: "Entrar / Cadastrar", href: fallback.dataset.loginUrl || "./login/" });
 
   try {
     const firebaseApi = await import(new URL("./firebase-client.js", scriptUrl).href);
@@ -19,7 +25,7 @@
 
     await firebaseApi.onAuth((user, profile) => {
       if (!user) {
-        setLinks({ label: "Entrar", href: fallback.dataset.loginUrl || "./login/" });
+        setLinks({ label: "Entrar / Cadastrar", href: fallback.dataset.loginUrl || "./login/" });
         return;
       }
 
@@ -39,6 +45,6 @@
       setLinks({ label: "Minha Conta", href: fallback.dataset.accountUrl || "./minhas-vagas-salvas/" });
     });
   } catch {
-    setLinks({ label: "Entrar", href: fallback.dataset.loginUrl || "./login/" });
+    setLinks({ label: "Entrar / Cadastrar", href: fallback.dataset.loginUrl || "./login/" });
   }
 })();
