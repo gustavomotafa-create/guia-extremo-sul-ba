@@ -72,7 +72,7 @@ function renderJobs(jobs) {
   companyJobs = jobs;
 
   if (!jobs.length) {
-    renderMessage("Nenhuma vaga publicada ainda.", "Use o botão Publicar Vaga para cadastrar sua primeira oportunidade.");
+    renderMessage("Nenhuma publicação criada ainda.", "Use o botão Publicar Oportunidade para cadastrar sua primeira oportunidade.");
     return;
   }
 
@@ -87,7 +87,7 @@ function renderJobs(jobs) {
             <span class="tag ${job.paymentStatus === "paga" ? "green" : ""}">${escapeHtml(job.paymentStatus || "gratis")}</span>
           </div>
           <h3>${escapeHtml(job.title || "Vaga sem título")}</h3>
-          <p><strong>${escapeHtml(job.companyName || "Empresa")}</strong> · ${escapeHtml(job.city || "Cidade")} · ${escapeHtml(job.contract || "Contrato")} · ${escapeHtml(job.modality || "Presencial")}</p>
+          <p><strong>${escapeHtml(job.companyName || "Anunciante")}</strong> · ${escapeHtml(job.city || "Cidade")} · ${escapeHtml(job.contract || "Contrato")} · ${escapeHtml(job.modality || "Presencial")}</p>
           <p><strong>Salário:</strong> ${escapeHtml(job.salaryLabel || "A combinar")}</p>
           ${rejection}
           <div class="admin-actions">
@@ -120,7 +120,7 @@ function renderUsage(usage = {}) {
   const freeUsed = Number(usage.freeUsed || 0);
   const paidCredits = Number(usage.paidCredits || 0);
   const paidUsed = Number(usage.paidUsed || 0);
-  quotaFree.textContent = `Grátis usadas: ${freeUsed}/3`;
+  quotaFree.textContent = `Grátis usadas: ${freeUsed}/2`;
   quotaPaid.textContent = `Créditos pagos: ${paidCredits} disponíveis · ${paidUsed} usados`;
 }
 
@@ -265,7 +265,7 @@ async function init() {
   firebaseApi = await import("../js/firebase-client.js");
 
   if (!firebaseApi.isFirebaseConfigured()) {
-    renderMessage("Firebase ainda não configurado.", "Configure o Firebase para ativar a área da empresa.");
+    renderMessage("Firebase ainda não configurado.", "Configure o Firebase para ativar sua conta.");
     paymentsList.textContent = "Firebase pendente.";
     renderUsage();
     return;
@@ -274,19 +274,14 @@ async function init() {
   services = await firebaseApi.getServices();
   await firebaseApi.onAuth((user, profile) => {
     if (!user) {
-      window.location.href = "../login/?tipo=empresa&next=../empresa/";
-      return;
-    }
-
-    if (!["company", "admin"].includes(profile?.role)) {
-      renderMessage("Acesso restrito.", "Entre com uma conta de empresa para gerenciar vagas.");
+      window.location.href = "../login/?next=../empresa/";
       return;
     }
 
     currentUser = user;
     currentProfile = profile;
-    quotaTitle.textContent = "3 vagas grátis por dia";
-    quotaText.textContent = "Ao ultrapassar o limite diário, cada pagamento de R$ 5,00 libera mais 3 publicações extras no mesmo dia.";
+    quotaTitle.textContent = "2 publicações gratuitas";
+    quotaText.textContent = "Após usar as duas publicações gratuitas, cada pagamento de R$ 5,00 libera mais 2 publicações extras.";
     listenCompanyData();
   });
 }

@@ -10,7 +10,6 @@
       link.dataset.mobileLabel = {
         "Entrar / Cadastrar": "Entrar",
         "Minha Conta": "Conta",
-        "Área da Empresa": "Empresa",
         Admin: "Admin",
       }[label] || label;
     });
@@ -37,12 +36,7 @@
         return;
       }
 
-      if (profile?.role === "company") {
-        setLinks({ label: "Área da Empresa", href: fallback.dataset.companyUrl || "./empresa/" });
-        return;
-      }
-
-      setLinks({ label: "Minha Conta", href: fallback.dataset.accountUrl || "./minhas-vagas-salvas/" });
+      setLinks({ label: "Minha Conta", href: fallback.dataset.companyUrl || "./empresa/" });
     });
   } catch {
     setLinks({ label: "Entrar / Cadastrar", href: fallback.dataset.loginUrl || "./login/" });

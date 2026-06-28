@@ -6,8 +6,8 @@ admin.initializeApp();
 
 const db = admin.firestore();
 const REGION = "southamerica-east1";
-const FREE_DAILY_LIMIT = 3;
-const EXTRA_PACK_SIZE = 3;
+const FREE_DAILY_LIMIT = 2;
+const EXTRA_PACK_SIZE = 2;
 const EXTRA_PACK_PRICE = 5;
 const ADMIN_EMAILS = ["sunflowercollectivegf@gmail.com"];
 
@@ -54,17 +54,13 @@ function isAdminAuth(auth) {
   );
 }
 
-async function assertCompany(auth) {
+async function assertPublisher(auth) {
   if (!auth) {
     throw new HttpsError("unauthenticated", "Entre para publicar vagas.");
   }
 
   const profile = await db.collection("users").doc(auth.uid).get();
   const role = profile.exists ? profile.data().role : null;
-
-  if (role !== "company" && role !== "admin" && !isAdminAuth(auth)) {
-    throw new HttpsError("permission-denied", "Use uma conta de empresa para publicar vagas.");
-  }
 
   return { uid: auth.uid, role, email: auth.token.email || "" };
 }
@@ -159,7 +155,7 @@ async function createMercadoPagoPreference({ auth, companyId, dateKey, jobId = "
     items: [
       {
         id: "girassol-vagas-extra-pack",
-        title: "Pacote de 3 publicações extras - Girassol Vagas",
+        title: "Pacote de 2 publicações extras - Girassol Vagas",
         quantity: 1,
         unit_price: EXTRA_PACK_PRICE,
         currency_id: "BRL",
@@ -222,7 +218,7 @@ async function createMercadoPagoPreference({ auth, companyId, dateKey, jobId = "
 }
 
 exports.createJobDraft = onCall({ region: REGION, secrets: [mercadoPagoAccessToken] }, async (request) => {
-  const company = await assertCompany(request.auth);
+  const company = await assertPublisher(request.auth);
   const dateKey = todayInBahia();
   const isAdminOrigin = company.role === "admin" || isAdminAuth(request.auth);
   if (isAdminOrigin) {
@@ -349,7 +345,7 @@ exports.createPublicationCheckout = onCall({ region: REGION, secrets: [mercadoPa
 });
 
 exports.createExtraPublicationPackCheckout = onCall({ region: REGION, secrets: [mercadoPagoAccessToken] }, async (request) => {
-  const company = await assertCompany(request.auth);
+  const company = await assertPublisher(request.auth);
   return createMercadoPagoPreference({
     auth: request.auth,
     companyId: company.uid,

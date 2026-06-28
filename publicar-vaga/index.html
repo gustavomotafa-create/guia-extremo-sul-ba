@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Publicar Vaga | Girassol Vagas</title>
+    <title>Publicar Oportunidade | Girassol Vagas</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -45,7 +45,7 @@
           >Entrar / Cadastrar</a>
           <a class="primary-button header-button" href="../publicar-vaga/">
             <span class="button-plus">+</span>
-            Publicar Vaga
+            Publicar Oportunidade
           </a>
         </div>
       </div>
@@ -54,16 +54,16 @@
     <main class="page-shell">
       <section class="page-hero">
         <div>
-          <h1>Publicar Vaga</h1>
-          <p>Cadastre a oportunidade da sua empresa. Todas as vagas entram como pendentes e passam por aprovação manual antes de aparecer para os candidatos.</p>
+          <h1>Publicar Oportunidade</h1>
+          <p>Cadastre uma vaga, serviço temporário ou oportunidade local. Toda publicação entra como pendente e passa por aprovação manual antes de aparecer no site.</p>
         </div>
         <a class="outline-button" href="../index.html">Voltar para vagas</a>
       </section>
 
       <form class="form-card" id="publishForm">
         <label class="form-field">
-          Nome da empresa
-          <input name="company" required placeholder="Ex: Sunflower Tech" />
+          Nome do anunciante
+          <input name="company" required placeholder="Ex: Sunflower Tech, Maria Silva ou Comércio local" />
         </label>
 
         <label class="form-field">
@@ -120,8 +120,8 @@
         </label>
 
         <label class="form-field full-row">
-          Logo da empresa
-          <input name="logoUrl" type="url" placeholder="Opcional: cole uma URL pública do logo" />
+          Logo ou imagem do anunciante
+          <input name="logoUrl" type="url" placeholder="Opcional: cole uma URL pública do logo ou imagem" />
           <span class="form-note">Se ficar vazio, a vaga usa automaticamente o ícone de girassol.</span>
         </label>
 
@@ -141,13 +141,13 @@
         </label>
 
         <div class="form-actions">
-          <p class="form-note">Empresas podem publicar até 3 vagas grátis por dia. Publicações extras são liberadas automaticamente após pagamento de R$ 5,00.</p>
-          <button class="primary-button" type="submit">Enviar para aprovação</button>
+          <p class="form-note">Cada anunciante pode publicar até 2 oportunidades gratuitamente. Publicações extras são liberadas automaticamente após pagamento de R$ 5,00.</p>
+          <button class="primary-button" type="submit">Enviar oportunidade</button>
         </div>
       </form>
 
       <div class="success-card" id="successCard">
-        <strong id="publishStatusTitle">Vaga enviada para aprovação.</strong>
+        <strong id="publishStatusTitle">Oportunidade enviada para aprovação.</strong>
         <p id="publishStatusText">Aguarde a revisão do Girassol Vagas.</p>
         <div class="dialog-actions" id="paymentActions" hidden>
           <a class="primary-button" id="checkoutLink" href="../precos/">Ir para pagamento</a>

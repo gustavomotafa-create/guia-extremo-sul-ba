@@ -1,6 +1,5 @@
 const params = new URLSearchParams(window.location.search);
 const nextUrl = params.get("next") || "../index.html";
-const suggestedType = params.get("tipo");
 
 const loginTab = document.querySelector("#loginTab");
 const signupTab = document.querySelector("#signupTab");
@@ -17,11 +16,6 @@ const googleSignupButton = document.querySelector("#googleSignupButton");
 const authMessage = document.querySelector("#authMessage");
 
 let firebaseApi;
-
-if (suggestedType === "empresa") {
-  roleSelect.value = "company";
-  setTab("signup");
-}
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({

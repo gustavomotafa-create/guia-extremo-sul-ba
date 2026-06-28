@@ -1,6 +1,6 @@
 # Girassol Vagas
 
-Plataforma regional para conectar candidatos, empresas e oportunidades no Extremo Sul da Bahia.
+Plataforma regional para conectar candidatos, anunciantes e oportunidades no Extremo Sul da Bahia.
 
 ## O que o site entrega
 
@@ -10,25 +10,25 @@ Plataforma regional para conectar candidatos, empresas e oportunidades no Extrem
 - Busca avancada por salario, contrato, modalidade e nivel.
 - Cards de vagas com detalhes completos e candidatura por WhatsApp.
 - Favoritos com login e pagina "Minhas Vagas Salvas".
-- Cadastro/login de candidatos e empresas via Firebase Authentication.
-- Area da empresa para acompanhar, editar, pausar, excluir e pagar vagas.
+- Cadastro/login de candidatos e anunciantes via Firebase Authentication.
+- Minha conta para acompanhar, editar, pausar, excluir e pagar publicacoes.
 - Admin protegido para cadastrar vagas manualmente, aprovar, rejeitar, editar e excluir.
 - Origem interna da vaga: `origin/source = admin` ou `origin/source = company`.
 - Fallback automatico para o icone de girassol quando a vaga nao tem logo.
 - Publicacao com aprovacao manual: vagas novas nao aparecem publicamente ate aprovacao.
-- Limite por empresa: 3 vagas gratis por dia; cada pagamento de R$ 5,00 libera mais 3 publicacoes extras no mesmo dia.
+- Limite por anunciante: 2 publicacoes gratuitas; cada pagamento de R$ 5,00 libera mais 2 publicacoes extras.
 - Base de pagamento automatico via Mercado Pago, com webhook de confirmacao.
 
 ## Estrutura Firebase
 
 Colecoes previstas no Cloud Firestore:
 
-- `users`: perfis de candidatos, empresas e admin.
-- `companies`: empresas cadastradas.
+- `users`: perfis de candidatos, anunciantes e admin.
+- `companies`: anunciantes cadastrados.
 - `jobs`: vagas com status `pendente`, `aguardando_pagamento`, `aprovada`, `rejeitada` ou `pausada`.
 - `savedJobs`: vagas salvas por candidatos.
 - `payments`: historico de pagamentos.
-- `companyDailyUsage`: controle diario de vagas gratis e creditos pagos por empresa.
+- `companyDailyUsage`: controle de publicacoes gratuitas e creditos pagos por anunciante.
 - `plans`: planos ou configuracoes comerciais futuras.
 
 Firebase Storage esta preparado para uma fase futura, mas nao e publicado no deploy atual para evitar exigencia do plano Blaze apenas por Storage. Enquanto isso, os cards usam o icone padrao de girassol ou uma URL publica opcional de logo.

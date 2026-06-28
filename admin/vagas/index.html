@@ -45,7 +45,7 @@
           >Entrar / Cadastrar</a>
           <a class="primary-button header-button" href="../../publicar-vaga/">
             <span class="button-plus">+</span>
-            Publicar Vaga
+            Publicar Oportunidade
           </a>
         </div>
       </div>
@@ -55,7 +55,7 @@
       <section class="page-hero">
         <div>
           <h1>Admin de Vagas</h1>
-          <p>Revise oportunidades enviadas por empresas antes de publicar. Somente usuários admin podem aprovar, editar, rejeitar ou excluir vagas.</p>
+          <p>Revise oportunidades enviadas por anunciantes antes de publicar. Somente usuários admin podem aprovar, editar, rejeitar ou excluir vagas.</p>
         </div>
         <a class="outline-button" href="../../index.html">Ver site</a>
       </section>
@@ -79,7 +79,7 @@
         </label>
         <label class="form-field">
           Buscar
-          <input id="adminSearch" type="search" placeholder="Cargo, empresa ou cidade" />
+          <input id="adminSearch" type="search" placeholder="Cargo, anunciante ou cidade" />
         </label>
         <button class="primary-button" id="newJobButton" type="button">+ Cadastrar vaga manual</button>
       </section>
@@ -93,7 +93,7 @@
       <form class="form-card compact-form" id="editJobForm">
         <input type="hidden" name="id" />
         <label class="form-field">
-          Nome da empresa
+          Nome do anunciante
           <input name="companyName" required />
         </label>
         <label class="form-field">
@@ -171,7 +171,7 @@
         </label>
         <label class="form-field full-row">
           Motivo da rejeição
-          <textarea name="rejectionReason" placeholder="Opcional, aparece no admin/empresa."></textarea>
+          <textarea name="rejectionReason" placeholder="Opcional, aparece no admin e na conta do anunciante."></textarea>
         </label>
         <div class="form-actions">
           <button class="secondary-button" type="button" data-close-dialog>Cancelar</button>

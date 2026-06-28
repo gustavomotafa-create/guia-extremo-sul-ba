@@ -965,7 +965,13 @@ input[type="checkbox"] {
 }
 
 .footer-brand {
+  align-items: center;
+  gap: 12px;
   margin-bottom: 14px;
+}
+
+.footer-brand .brand-icon {
+  flex: 0 0 52px;
 }
 
 .footer-brand strong {

@@ -50,7 +50,7 @@ function formatBenefits(benefits) {
 
 function originLabel(job) {
   const origin = job.origin || job.source || "company";
-  return origin === "admin" ? "Admin" : "Empresa";
+  return origin === "admin" ? "Admin" : "Anunciante";
 }
 
 function renderGuard(title, text, actionHtml = "") {
@@ -99,7 +99,7 @@ function renderJobs() {
             <span class="tag blue">Origem: ${escapeHtml(originLabel(job))}</span>
           </div>
           <h3>${escapeHtml(job.title || "Vaga sem título")}</h3>
-          <p><strong>${escapeHtml(job.companyName || "Empresa não informada")}</strong> · ${escapeHtml(job.city || "Cidade não informada")} · ${escapeHtml(job.contract || "Contrato não informado")} · ${escapeHtml(job.salaryLabel || "Salário a combinar")}</p>
+          <p><strong>${escapeHtml(job.companyName || "Anunciante não informado")}</strong> · ${escapeHtml(job.city || "Cidade não informada")} · ${escapeHtml(job.contract || "Contrato não informado")} · ${escapeHtml(job.salaryLabel || "Salário a combinar")}</p>
           <p>${escapeHtml(job.description || "Sem descrição.")}</p>
           <p><strong>Requisitos:</strong> ${escapeHtml(job.requirements || "Não informado")}</p>
           <p><strong>Benefícios:</strong> ${escapeHtml(benefits)}</p>

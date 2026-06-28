@@ -72,7 +72,7 @@ function tagClass(tag) {
 }
 
 function formatJob(rawJob) {
-  const companyName = rawJob.companyName || rawJob.company || "Empresa não informada";
+  const companyName = rawJob.companyName || rawJob.company || "Anunciante não informado";
   const modality = rawJob.modality || rawJob.mode || "Presencial";
   const salary = currencyValue(rawJob.salary);
   const city = rawJob.city || "Extremo Sul da Bahia";
@@ -201,7 +201,7 @@ function showDetails(jobId) {
   const job = jobs.map(formatJob).find((item) => item.id === jobId);
   if (!job) return;
 
-  const whatsappText = encodeURIComponent(`Olá! Tenho interesse na vaga ${job.title} da empresa ${job.companyName}.`);
+  const whatsappText = encodeURIComponent(`Olá! Tenho interesse na oportunidade ${job.title} anunciada por ${job.companyName}.`);
   const whatsapp = String(job.whatsapp || "").replace(/\D/g, "") || "5527988492573";
   const statusLabel = job.status === "aprovada" ? "Vaga aprovada" : job.status;
   detailsBody.innerHTML = `
