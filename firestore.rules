@@ -79,10 +79,13 @@ service cloud.firestore {
       allow get: if ownCompany(companyId) || isAdmin();
       allow list: if isAdmin();
       allow create: if ownCompany(companyId)
-        && request.resource.data.ownerUid == request.auth.uid;
+        && request.resource.data.ownerUid == request.auth.uid
+        && (!request.resource.data.keys().hasAny(['active']) || request.resource.data.active == false)
+        && !request.resource.data.keys().hasAny(['verifiedByAdmin']);
       allow update: if (
         ownCompany(companyId)
         && request.resource.data.ownerUid == resource.data.ownerUid
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['active', 'verifiedByAdmin'])
       ) || isAdmin();
       allow delete: if isAdmin();
     }

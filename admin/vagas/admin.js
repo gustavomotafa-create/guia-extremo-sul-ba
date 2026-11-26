@@ -7,12 +7,17 @@ const newJobButton = document.querySelector("#newJobButton");
 const adminTabs = document.querySelector("#adminTabs");
 const jobsPanel = document.querySelector("#jobsPanel");
 const automatedLeadsPanel = document.querySelector("#automatedLeadsPanel");
+const companiesPanel = document.querySelector("#companiesPanel");
 const jobsTab = document.querySelector("#jobsTab");
 const automatedLeadsTab = document.querySelector("#automatedLeadsTab");
+const companiesTab = document.querySelector("#companiesTab");
 const pendingLeadCount = document.querySelector("#pendingLeadCount");
 const leadStatusFilter = document.querySelector("#leadStatusFilter");
 const leadSearch = document.querySelector("#leadSearch");
 const automatedLeadList = document.querySelector("#automatedLeadList");
+const companySearch = document.querySelector("#companySearch");
+const companyList = document.querySelector("#companyList");
+const companyListNote = document.querySelector("#companyListNote");
 const editDialog = document.querySelector("#editJobDialog");
 const editDialogTitle = document.querySelector("#editDialogTitle");
 const editForm = document.querySelector("#editJobForm");
@@ -24,6 +29,7 @@ let firebaseApi;
 let services;
 let allJobs = [];
 let allAutomatedLeads = [];
+let allCompanies = [];
 let unsubscribeJobs;
 let unsubscribeAutomatedLeads;
 let currentAdminUser;
@@ -77,6 +83,21 @@ function originLabel(job) {
   return origin === "admin" ? "Admin" : "Anunciante";
 }
 
+function moderationReviewDetails(job) {
+  const flags = Array.isArray(job.moderationFlags) ? job.moderationFlags.filter(Boolean) : [];
+  const reasons = Array.isArray(job.moderationReasons)
+    ? job.moderationReasons
+      .map((reason) => typeof reason === "string" ? reason : reason?.message)
+      .filter(Boolean)
+    : [];
+  if (job.moderationStatus !== "review" && !flags.length && !reasons.length) return "";
+  const details = [
+    flags.length ? `<p><strong>Sinais:</strong> ${escapeHtml(flags.join(", "))}</p>` : "",
+    reasons.length ? `<p><strong>Motivos:</strong> ${escapeHtml(reasons.join(" · "))}</p>` : "",
+  ].join("");
+  return `<aside class="moderation-review-note"><strong>Revisão excepcional</strong>${details}</aside>`;
+}
+
 function renderGuard(title, text, actionHtml = "") {
   adminGuard.innerHTML = `<strong>${escapeHtml(title)}</strong><p>${escapeHtml(text)}</p>${actionHtml}`;
   adminGuard.classList.add("is-visible");
@@ -111,10 +132,71 @@ function renderJobs() {
     return;
   }
 
+  function formatCompanyVerificationDate(value) {
+    const milliseconds = timestampMillis(value);
+    return milliseconds
+      ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(milliseconds))
+      : "Não registrada";
+  }
+
+  function visibleCompanies() {
+    const query = normalize(companySearch.value);
+    return allCompanies
+      .filter((company) => !query || normalize([
+        company.name,
+        company.email,
+        company.ownerUid,
+        company.tradeName,
+        company.cnpj,
+      ].join(" ")).includes(query))
+      .sort((left, right) => (
+        Number(left.verifiedByAdmin === true) - Number(right.verifiedByAdmin === true)
+        || normalize(left.name || "").localeCompare(normalize(right.name || ""), "pt-BR")
+      ));
+  }
+
+  function renderCompanies() {
+    const companies = visibleCompanies();
+    if (!companies.length) {
+      companyList.innerHTML = '<div class="empty-state">Nenhuma empresa encontrada.</div>';
+      return;
+    }
+
+    companyList.innerHTML = companies.map((company) => {
+      const verified = company.verifiedByAdmin === true;
+      const active = company.active === true;
+      const verifiedAt = verified ? formatCompanyVerificationDate(company.verifiedAt) : "";
+      const verifiedBy = verified ? company.verifiedByEmail || company.verifiedByUid || "Administrador" : "";
+      const inconsistent = active !== verified;
+      return `
+        <article class="admin-card company-verification-card">
+          <div class="admin-card-header">
+            <span class="tag ${verified ? "green" : "blue"}">${verified ? "Verificada" : "Não verificada"}</span>
+            <span class="tag ${active ? "green" : ""}">${active ? "Ativa" : "Inativa"}</span>
+          </div>
+          <div>
+            <h3>${escapeHtml(company.name || company.tradeName || "Empresa sem nome")}</h3>
+            <p><strong>E-mail:</strong> ${escapeHtml(company.email || "Não informado")}</p>
+            <p><strong>Responsável:</strong> ${escapeHtml(company.ownerUid || company.id || "Não informado")}</p>
+            ${company.cnpj ? `<p><strong>CNPJ:</strong> ${escapeHtml(company.cnpj)}</p>` : ""}
+            ${verified ? `<p><strong>Verificada em:</strong> ${escapeHtml(verifiedAt)} · <strong>Por:</strong> ${escapeHtml(verifiedBy)}</p>` : ""}
+            ${inconsistent ? '<p class="lead-completion-note">O estado de ativação não corresponde à verificação administrativa. Use a ação para sincronizar.</p>' : ""}
+          </div>
+          <div class="admin-actions">
+            <button class="${verified ? "danger-button" : "primary-button"}" type="button" data-company-verification="${verified ? "false" : "true"}" data-company-id="${escapeHtml(company.id)}">
+              ${verified ? "Remover verificação e desativar" : "Verificar e ativar"}
+            </button>
+          </div>
+        </article>
+      `;
+    }).join("");
+  }
+
   adminList.innerHTML = jobs
     .map((job) => {
       const benefits = formatBenefits(job.benefits);
       const rejection = job.rejectionReason ? `<p><strong>Motivo:</strong> ${escapeHtml(job.rejectionReason)}</p>` : "";
+      const moderationDetails = moderationReviewDetails(job);
       return `
         <article class="admin-card">
           <div class="admin-card-header">
@@ -128,6 +210,7 @@ function renderJobs() {
           <p><strong>Requisitos:</strong> ${escapeHtml(job.requirements || "Não informado")}</p>
           <p><strong>Benefícios:</strong> ${escapeHtml(benefits)}</p>
           <p><strong>WhatsApp:</strong> ${escapeHtml(job.whatsapp || "Não informado")}</p>
+          ${moderationDetails}
           ${rejection}
           <div class="admin-actions">
             <button class="primary-button" type="button" data-action="approve" data-id="${escapeHtml(job.id)}">Aprovar</button>
@@ -357,6 +440,21 @@ async function loadAutomatedLeads() {
   });
 }
 
+async function loadCompanies() {
+  companyList.innerHTML = '<div class="empty-state">Carregando empresas...</div>';
+  try {
+    const result = await firebaseApi.callFunction("listCompaniesForAdmin");
+    allCompanies = Array.isArray(result.companies) ? result.companies : [];
+    companyListNote.hidden = !result.hasMore;
+    companyListNote.textContent = result.hasMore
+      ? "Exibindo as primeiras 200 empresas. A listagem será paginada em uma etapa futura."
+      : "";
+    renderCompanies();
+  } catch (error) {
+    companyList.innerHTML = `<div class="empty-state">${escapeHtml(error.message || "Não foi possível carregar as empresas.")}</div>`;
+  }
+}
+
 async function loadJobs() {
   const { db, firestoreSdk } = services;
   const q = firestoreSdk.query(
@@ -508,13 +606,18 @@ adminList.addEventListener("click", async (event) => {
 });
 
 function setAdminView(view) {
-  const showLeads = view === "leads";
-  jobsPanel.hidden = showLeads;
-  automatedLeadsPanel.hidden = !showLeads;
-  jobsTab.classList.toggle("is-active", !showLeads);
-  automatedLeadsTab.classList.toggle("is-active", showLeads);
-  jobsTab.setAttribute("aria-selected", String(!showLeads));
-  automatedLeadsTab.setAttribute("aria-selected", String(showLeads));
+  const activeView = ["jobs", "leads", "companies"].includes(view) ? view : "jobs";
+  const tabPanels = [
+    [jobsTab, jobsPanel, "jobs"],
+    [automatedLeadsTab, automatedLeadsPanel, "leads"],
+    [companiesTab, companiesPanel, "companies"],
+  ];
+  for (const [tab, panel, name] of tabPanels) {
+    const active = activeView === name;
+    panel.hidden = !active;
+    tab.classList.toggle("is-active", active);
+    tab.setAttribute("aria-selected", String(active));
+  }
 }
 
 function openAutomatedLeadDialog(leadId) {
@@ -603,6 +706,33 @@ automatedLeadList.addEventListener("click", async (event) => {
   }
 });
 
+companyList.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-company-verification]");
+  if (!button) return;
+  const verified = button.dataset.companyVerification === "true";
+  const company = allCompanies.find((item) => item.id === button.dataset.companyId);
+  if (!company) return;
+
+  const companyName = company.name || company.tradeName || company.email || company.id;
+  const prompt = verified
+    ? `Verificar ${companyName} e ativar publicação automática para vagas limpas?`
+    : `Remover a verificação de ${companyName} e desativar a empresa?`;
+  if (!window.confirm(prompt)) return;
+
+  button.disabled = true;
+  try {
+    await firebaseApi.callFunction("setCompanyVerification", {
+      companyId: company.id,
+      verified,
+    });
+    await loadCompanies();
+  } catch (error) {
+    window.alert(error.message || "Não foi possível atualizar a verificação da empresa.");
+  } finally {
+    button.disabled = false;
+  }
+});
+
 automatedLeadForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const submitAction = event.submitter?.dataset.leadSubmit || "save";
@@ -656,6 +786,8 @@ editForm.addEventListener("submit", async (event) => {
   field.addEventListener("input", renderAutomatedLeads);
   field.addEventListener("change", renderAutomatedLeads);
 });
+
+companySearch.addEventListener("input", renderCompanies);
 
 adminTabs.addEventListener("click", (event) => {
   const button = event.target.closest("[data-admin-view]");
@@ -712,6 +844,7 @@ async function init() {
     currentAdminUser = user;
     loadJobs();
     loadAutomatedLeads();
+    loadCompanies();
   });
 }
 

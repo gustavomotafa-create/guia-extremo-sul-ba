@@ -244,8 +244,13 @@ editForm.addEventListener("submit", async (event) => {
 
   try {
     const id = editForm.elements.id.value;
-    await updateJob(id, collectEditPayload(id));
+    const result = await firebaseApi.updateJobWithModeration(id, collectEditPayload(id));
     editDialog.close();
+    alert(result.status === "aprovada"
+      ? "Alterações avaliadas automaticamente. A vaga continua publicada."
+      : result.moderationStatus === "review"
+        ? "Alterações salvas. A vaga aguarda revisão excepcional antes de voltar ao site."
+        : "Alterações salvas. A publicação aguarda a conclusão do pagamento.");
   } catch (error) {
     alert(error.message || "Não foi possível salvar a vaga.");
   }

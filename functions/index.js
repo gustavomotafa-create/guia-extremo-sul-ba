@@ -1,6 +1,7 @@
 const admin = require("firebase-admin");
 const { defineSecret, defineString } = require("firebase-functions/params");
 const { HttpsError, onCall, onRequest } = require("firebase-functions/v2/https");
+const { evaluateJobModeration } = require("./job-moderation");
 
 admin.initializeApp();
 
@@ -10,6 +11,7 @@ const FREE_DAILY_LIMIT = 2;
 const EXTRA_PACK_SIZE = 2;
 const EXTRA_PACK_PRICE = 5;
 const ADMIN_EMAILS = ["sunflowercollectivegf@gmail.com"];
+const ACTIVE_JOB_STATUSES = new Set(["aprovada", "pendente", "aguardando_pagamento"]);
 const AUTOMATED_LEAD_PENDING_STATUSES = new Set([
   "",
   "new",
@@ -52,6 +54,99 @@ function cleanWhatsapp(value) {
 function parseSalary(value) {
   const number = Number(String(value || "").replace(/[^\d,.-]/g, "").replace(".", "").replace(",", "."));
   return Number.isFinite(number) ? number : 0;
+}
+
+function moderationContextFor(auth, role, companyData = {}, hasPublicationHistory = false, duplicateFingerprint = false, now = new Date()) {
+  return {
+    now,
+    profileRole: role,
+    emailVerified: auth.token.email_verified === true,
+    companyActive: companyData.active === true && companyData.verifiedByAdmin === true,
+    hasPublicationHistory,
+    duplicateFingerprint,
+  };
+}
+
+function assertModerationAllowsSubmission(result) {
+  if (result.decision !== "block") return;
+  const reason = result.reasons.find((item) => item.severity === "block");
+  throw new HttpsError("failed-precondition", reason?.message || "A vaga não passou pela moderação automática.");
+}
+
+function moderationFields(result) {
+  return {
+    expiresAt: result.expiresAt,
+    fingerprint: result.fingerprint,
+    moderationStatus: result.decision,
+    moderationFlags: result.flags,
+    moderationReasons: result.reasons,
+    moderationVersion: result.ruleVersion,
+    moderatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+}
+
+function activeDuplicateExists(snapshot, excludedJobId = "") {
+  return snapshot?.size >= 20 || (snapshot?.docs || []).some((document) => {
+    if (document.id === excludedJobId) return false;
+    return ACTIVE_JOB_STATUSES.has(document.data()?.status);
+  });
+}
+
+function publisherHistoryQuery(uid) {
+  return db.collection("jobs")
+    .where("companyId", "==", uid)
+    .limit(20);
+}
+
+function hasPublisherHistory(snapshot) {
+  return (snapshot?.docs || []).some((document) => document.data()?.status === "aprovada");
+}
+
+function duplicateFingerprintQuery(fingerprint) {
+  return db.collection("jobs")
+    .where("fingerprint", "==", fingerprint)
+    .limit(20);
+}
+
+function moderationQuotaStatus(decision, paymentStatus) {
+  if (decision === "review") return "pendente";
+  if (paymentStatus === "aguardando_pagamento") return "aguardando_pagamento";
+  return decision === "approve" ? "aprovada" : "pendente";
+}
+
+function moderationStatusForPayment(job, duplicateExists = false, now = new Date()) {
+  const expiresAt = timestampDate(job.expiresAt);
+  if (
+    job.moderationStatus === "approve"
+    && /^[a-f0-9]{64}$/.test(String(job.fingerprint || ""))
+    && expiresAt
+    && expiresAt.getTime() > now.getTime()
+    && !duplicateExists
+  ) {
+    return {
+      status: job.status === "pausada" ? "pausada" : "aprovada",
+      moderationStatus: "approve",
+    };
+  }
+  const flags = Array.isArray(job.moderationFlags) ? [...job.moderationFlags] : [];
+  const reasons = Array.isArray(job.moderationReasons) ? [...job.moderationReasons] : [];
+  const reasonCode = duplicateExists ? "active_duplicate" : "payment_recheck_required";
+  flags.push(reasonCode);
+  reasons.push({
+    code: reasonCode,
+    message: duplicateExists
+      ? "Foi encontrada uma vaga ativa duplicada antes da confirmação do pagamento."
+      : job.moderationStatus === "approve"
+        ? "A validade terminou ou os dados de moderação precisam ser reavaliados antes da confirmação do pagamento."
+        : "A vaga exige revisão excepcional antes da publicação.",
+    severity: "review",
+  });
+  return {
+    status: "pendente",
+    moderationStatus: "review",
+    moderationFlags: [...new Set(flags)],
+    moderationReasons: reasons,
+  };
 }
 
 function isAdminAuth(auth) {
@@ -307,7 +402,7 @@ async function assertJobOwnerOrAdmin(auth, jobId) {
   return { jobRef, job };
 }
 
-function buildJobPayload(data, auth, quota) {
+function buildJobPayload(data, auth, quota, moderation = null) {
   const companyName = cleanString(data.companyName);
   const title = cleanString(data.title);
   const city = cleanString(data.city);
@@ -353,6 +448,7 @@ function buildJobPayload(data, auth, quota) {
     origin: quota.origin || "company",
     source: quota.origin || "company",
     dateKey: quota.dateKey,
+    ...(moderation ? moderationFields(moderation) : {}),
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   };
@@ -469,12 +565,37 @@ exports.createJobDraft = onCall({ region: REGION, secrets: [mercadoPagoAccessTok
     };
   }
 
+  const moderationNow = new Date().toISOString();
+  const preliminaryModeration = evaluateJobModeration(
+    request.data || {},
+    moderationContextFor(request.auth, company.role, { active: true }, true, false, moderationNow),
+  );
+  assertModerationAllowsSubmission(preliminaryModeration);
+
   const usageRef = db.collection("companyDailyUsage").doc(`${company.uid}_${dateKey}`);
   const jobRef = db.collection("jobs").doc();
-  let requiresPayment = false;
 
   const result = await db.runTransaction(async (transaction) => {
-    const usageSnap = await transaction.get(usageRef);
+    const [usageSnap, duplicateSnapshot, companySnapshot, historySnapshot] = await Promise.all([
+      transaction.get(usageRef),
+      transaction.get(duplicateFingerprintQuery(preliminaryModeration.fingerprint)),
+      transaction.get(db.collection("companies").doc(company.uid)),
+      transaction.get(publisherHistoryQuery(company.uid)),
+    ]);
+
+    const moderation = evaluateJobModeration(
+      request.data || {},
+      moderationContextFor(
+        request.auth,
+        company.role,
+        companySnapshot.exists ? companySnapshot.data() : {},
+        hasPublisherHistory(historySnapshot),
+        activeDuplicateExists(duplicateSnapshot),
+        moderationNow,
+      ),
+    );
+    assertModerationAllowsSubmission(moderation);
+
     const usage = usageSnap.exists ? usageSnap.data() : {};
     const freeUsed = Number(usage.freeUsed || 0);
     const paidCredits = Number(usage.paidCredits || 0);
@@ -486,6 +607,7 @@ exports.createJobDraft = onCall({ region: REGION, secrets: [mercadoPagoAccessTok
       origin: "company",
       dateKey,
     };
+    let requiresPayment = false;
     const usagePatch = {
       companyId: company.uid,
       dateKey,
@@ -509,7 +631,11 @@ exports.createJobDraft = onCall({ region: REGION, secrets: [mercadoPagoAccessTok
       requiresPayment = true;
     }
 
-    const jobPayload = buildJobPayload(request.data || {}, request.auth, quota);
+    quota.status = moderationQuotaStatus(moderation.decision, quota.paymentStatus);
+    const jobPayload = buildJobPayload(request.data || {}, request.auth, quota, moderation);
+    if (jobPayload.status === "aprovada") {
+      jobPayload.publishedAt = admin.firestore.FieldValue.serverTimestamp();
+    }
     const usagePayload = {
       companyId: company.uid,
       dateKey,
@@ -531,10 +657,12 @@ exports.createJobDraft = onCall({ region: REGION, secrets: [mercadoPagoAccessTok
       status: jobPayload.status,
       paymentStatus: jobPayload.paymentStatus,
       requiresPayment,
+      moderationStatus: moderation.decision,
+      moderationFlags: moderation.flags,
     };
   });
 
-  if (requiresPayment) {
+  if (result.requiresPayment) {
     const checkout = await createMercadoPagoPreference({
       auth: request.auth,
       companyId: company.uid,
@@ -547,6 +675,157 @@ exports.createJobDraft = onCall({ region: REGION, secrets: [mercadoPagoAccessTok
   }
 
   return result;
+});
+
+exports.updateCompanyJob = onCall({ region: REGION }, async (request) => {
+  const publisher = await assertPublisher(request.auth);
+  const jobId = cleanString(request.data?.jobId).slice(0, 200);
+  const edits = request.data?.edits;
+  if (!jobId || !edits || typeof edits !== "object" || Array.isArray(edits)) {
+    throw new HttpsError("invalid-argument", "Informe a vaga e os campos revisados.");
+  }
+
+  const moderationNow = new Date().toISOString();
+  const preliminaryModeration = evaluateJobModeration(
+    edits,
+    moderationContextFor(request.auth, publisher.role, { active: true }, true, false, moderationNow),
+  );
+  assertModerationAllowsSubmission(preliminaryModeration);
+
+  const jobRef = db.collection("jobs").doc(jobId);
+  return db.runTransaction(async (transaction) => {
+    const jobSnapshot = await transaction.get(jobRef);
+    if (!jobSnapshot.exists) {
+      throw new HttpsError("not-found", "Vaga não encontrada.");
+    }
+
+    const original = jobSnapshot.data();
+    if (original.companyId !== publisher.uid) {
+      throw new HttpsError("permission-denied", "Você não pode editar esta vaga.");
+    }
+
+    const [duplicateSnapshot, companySnapshot, historySnapshot] = await Promise.all([
+      transaction.get(duplicateFingerprintQuery(preliminaryModeration.fingerprint)),
+      transaction.get(db.collection("companies").doc(publisher.uid)),
+      transaction.get(publisherHistoryQuery(publisher.uid)),
+    ]);
+
+    let moderation = evaluateJobModeration(
+      edits,
+      moderationContextFor(
+        request.auth,
+        publisher.role,
+        companySnapshot.exists ? companySnapshot.data() : {},
+        hasPublisherHistory(historySnapshot),
+        activeDuplicateExists(duplicateSnapshot, jobId),
+        moderationNow,
+      ),
+    );
+    assertModerationAllowsSubmission(moderation);
+    if (original.status === "rejeitada" && moderation.decision === "approve") {
+      moderation = {
+        ...moderation,
+        decision: "review",
+        flags: [...new Set([...moderation.flags, "previously_rejected"])].sort(),
+        reasons: [
+          ...moderation.reasons,
+          {
+            code: "previously_rejected",
+            message: "Vaga rejeitada anteriormente; requer reavaliação administrativa.",
+            severity: "review",
+          },
+        ],
+      };
+    }
+
+    const paymentStatus = original.paymentStatus || "gratis";
+    const status = original.status === "pausada"
+      ? "pausada"
+      : moderationQuotaStatus(moderation.decision, paymentStatus);
+    const jobPayload = buildJobPayload(edits, request.auth, {
+      status,
+      paymentStatus,
+      quotaType: original.quotaType || "gratis",
+      origin: original.origin || "company",
+      dateKey: original.dateKey || todayInBahia(),
+    }, moderation);
+    delete jobPayload.createdAt;
+    if (status === "aprovada") {
+      jobPayload.publishedAt = admin.firestore.FieldValue.serverTimestamp();
+    } else {
+      jobPayload.publishedAt = null;
+    }
+    jobPayload.rejectionReason = "";
+
+    transaction.update(jobRef, jobPayload);
+    return {
+      jobId,
+      status,
+      paymentStatus,
+      moderationStatus: moderation.decision,
+      moderationFlags: moderation.flags,
+    };
+  });
+});
+
+exports.setCompanyVerification = onCall({ region: REGION }, async (request) => {
+  const adminUser = await assertAdminUser(request.auth);
+  const companyId = cleanString(request.data?.companyId).slice(0, 200);
+  const verified = request.data?.verified;
+  if (!companyId || typeof verified !== "boolean") {
+    throw new HttpsError("invalid-argument", "Informe a empresa e o novo estado de verificação.");
+  }
+
+  const companyRef = db.collection("companies").doc(companyId);
+  return db.runTransaction(async (transaction) => {
+    const companySnapshot = await transaction.get(companyRef);
+    if (!companySnapshot.exists) {
+      throw new HttpsError("not-found", "Empresa não encontrada.");
+    }
+
+    const now = admin.firestore.FieldValue.serverTimestamp();
+    transaction.update(companyRef, {
+      verifiedByAdmin: verified,
+      active: verified,
+      verifiedAt: verified ? now : null,
+      verifiedByUid: verified ? adminUser.uid : null,
+      verifiedByEmail: verified ? adminUser.email : null,
+      verificationUpdatedAt: now,
+      verificationUpdatedByUid: adminUser.uid,
+      verificationRevokedAt: verified ? null : now,
+      verificationRevokedByUid: verified ? null : adminUser.uid,
+      updatedAt: now,
+    });
+
+    return {
+      companyId,
+      verifiedByAdmin: verified,
+      active: verified,
+    };
+  });
+});
+
+exports.listCompaniesForAdmin = onCall({ region: REGION }, async (request) => {
+  await assertAdminUser(request.auth);
+  const snapshot = await db.collection("companies").limit(201).get();
+  const hasMore = snapshot.docs.length > 200;
+  const companies = snapshot.docs.slice(0, 200).map((document) => {
+    const company = document.data();
+    return {
+      id: document.id,
+      ownerUid: company.ownerUid || document.id,
+      name: cleanString(company.name).slice(0, 180),
+      tradeName: cleanString(company.tradeName).slice(0, 180),
+      email: cleanString(company.email).slice(0, 254),
+      cnpj: cleanString(company.cnpj).slice(0, 32),
+      active: company.active === true,
+      verifiedByAdmin: company.verifiedByAdmin === true,
+      verifiedAt: timestampDate(company.verifiedAt)?.toISOString() || null,
+      verifiedByUid: company.verifiedByUid || null,
+      verifiedByEmail: company.verifiedByEmail || null,
+    };
+  });
+  return { companies, hasMore };
 });
 
 exports.reviewAutomatedJobLead = onCall({ region: REGION }, async (request) => {
@@ -749,9 +1028,15 @@ exports.mercadoPagoWebhook = onRequest({ region: REGION, secrets: [mercadoPagoAc
   const jobRef = jobId ? db.collection("jobs").doc(jobId) : null;
 
   await db.runTransaction(async (transaction) => {
-    const paymentSnap = await transaction.get(paymentRef);
-    const usageSnap = await transaction.get(usageRef);
+    const [paymentSnap, usageSnap, jobSnapshot] = await Promise.all([
+      transaction.get(paymentRef),
+      transaction.get(usageRef),
+      jobRef ? transaction.get(jobRef) : Promise.resolve(null),
+    ]);
     if (paymentSnap.exists && paymentSnap.data().status === "approved") return;
+    const duplicateSnapshot = jobSnapshot?.exists && jobSnapshot.data().fingerprint
+      ? await transaction.get(duplicateFingerprintQuery(jobSnapshot.data().fingerprint))
+      : null;
 
     transaction.set(paymentRef, {
       companyId,
@@ -781,13 +1066,22 @@ exports.mercadoPagoWebhook = onRequest({ region: REGION, secrets: [mercadoPagoAc
     }
 
     if (jobRef) {
-      transaction.update(jobRef, {
-        status: "pendente",
-        paymentStatus: "paga",
-        paymentId: localPaymentId,
-        paidAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
+      if (jobSnapshot?.exists) {
+        const moderation = moderationStatusForPayment(
+          jobSnapshot.data(),
+          activeDuplicateExists(duplicateSnapshot, jobRef.id),
+        );
+        transaction.update(jobRef, {
+          ...moderation,
+          paymentStatus: "paga",
+          paymentId: localPaymentId,
+          paidAt: admin.firestore.FieldValue.serverTimestamp(),
+          ...(moderation.status === "aprovada"
+            ? { publishedAt: admin.firestore.FieldValue.serverTimestamp() }
+            : { publishedAt: null }),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
       transaction.set(usageRef, {
         ...usagePayload,
         paidCredits: admin.firestore.FieldValue.increment(Math.max(credits - 1, 0)),

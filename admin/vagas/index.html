@@ -55,7 +55,7 @@
       <section class="page-hero">
         <div>
           <h1>Admin de Vagas</h1>
-          <p>Revise oportunidades enviadas por anunciantes antes de publicar. Somente usuários admin podem aprovar, editar, rejeitar ou excluir vagas.</p>
+          <p>Vagas limpas são publicadas automaticamente. Use a fila administrativa para analisar exceções, editar, rejeitar ou excluir oportunidades.</p>
         </div>
         <a class="outline-button" href="../../index.html">Ver site</a>
       </section>
@@ -71,6 +71,9 @@
         </button>
         <button class="admin-tab" id="automatedLeadsTab" data-admin-view="leads" type="button" role="tab" aria-selected="false" aria-controls="automatedLeadsPanel">
           Triagem automática <span class="admin-tab-count" id="pendingLeadCount">0</span>
+        </button>
+        <button class="admin-tab" id="companiesTab" data-admin-view="companies" type="button" role="tab" aria-selected="false" aria-controls="companiesPanel">
+          Empresas
         </button>
       </div>
 
@@ -116,6 +119,18 @@
         </div>
         <p class="lead-triage-note">Aprovar publica a vaga no site. Leads vencidos ou indisponíveis não podem ser publicados.</p>
         <section class="admin-list" id="automatedLeadList"></section>
+      </section>
+
+      <section class="admin-panel" id="companiesPanel" role="tabpanel" aria-labelledby="companiesTab" hidden>
+        <div class="admin-toolbar lead-toolbar">
+          <label class="form-field">
+            Buscar empresa
+            <input id="companySearch" type="search" placeholder="Nome, e-mail ou responsável" />
+          </label>
+        </div>
+        <p class="lead-triage-note" id="companyListNote" hidden></p>
+        <p class="lead-triage-note">A verificação administrativa ativa a empresa para publicação automática de vagas limpas. A remoção da verificação também desativa a empresa.</p>
+        <section class="admin-list" id="companyList"></section>
       </section>
     </main>
 
