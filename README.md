@@ -111,6 +111,35 @@ URL esperada:
 
 No GitHub Pages, o site usa somente `js/firebase-config.js`. O arquivo `js/firebase-config.local.js` e ignorado em producao para evitar erro 404 e manter a configuracao local separada.
 
+## Busca automatica de vagas (dry-run)
+
+O workflow `.github/workflows/daily-job-search.yml` executa diariamente as 06:13 no horario da Bahia (09:13 UTC) e tambem pode ser iniciado manualmente. Ele valida os 417 municipios da Bahia consultando a API oficial do IBGE e grava um relatorio como artifact da execucao por 90 dias. O fluxo e dry-run: nao publica vagas nem grava no Firestore.
+
+A fonte integrada por padrao e a API publica do Jobicy, filtrada por vagas remotas elegiveis no Brasil. Ela nao fornece filtro por municipio e nao substitui uma fonte local para os 417 municipios. A API publica e gratuita, mas exige atribuicao visivel ao Jobicy e a manutencao do link original da vaga. O coletor usa o link de listagem do Jobicy e nao solicita links diretos de candidatura que podem ter cobranca. A API tem janela de sete dias, atraso de tres horas, paginacao sequencial, consulta de status e limite de uma requisicao por segundo; a execucao respeita esse intervalo e e agendada fora do minuto zero.
+
+Para fontes adicionais previamente aprovadas, configure `JOB_SEARCH_SOURCES_JSON` como um array JSON. Cada `id` e URL exata do feed tambem precisa estar registrada na allowlist versionada em `functions/job-bot.js`; apenas definir `authorized` e `termsReviewed` nao habilita uma fonte. Um exemplo da estrutura esperada:
+
+```json
+[
+  {
+    "id": "identificador-estavel",
+    "name": "Nome da fonte",
+    "feedUrl": "https://exemplo.gov.br/api/vagas",
+    "termsUrl": "https://exemplo.gov.br/termos",
+    "authorized": true,
+    "termsReviewed": true
+  }
+]
+```
+
+O feed deve ser uma API documentada e autorizada, sem autenticacao, e retornar um array JSON ou `{ "jobs": [...] }`. Cada registro precisa fornecer `title`, `city` (nome de um dos municipios da Bahia) e `url` HTTPS identificavel; `id`/`externalId`, `company`/`companyName`, `description`, `salary`, `contract`, `modality`, `publishedAt`, `validThrough`, `available`, `ttlDays` e `staleAfterDays` sao opcionais e nunca sao inventados. Sem validade explicita, o TTL e de 30 dias a partir da publicacao ou da coleta; `ttlDays` pode ser configurado por fonte. O ciclo de vida usa `validityStatus` (`active`, `expired` ou `stale`), com janela de desatualizacao padrao de 7 dias. `authorized` e `termsReviewed` sao declaracoes de configuracao, nao substituem a allowlist de codigo. Feeds sem registro explicito, com URL Remote OK, ou que redirecionem sao rejeitados; URLs de vaga que apontem ao Remote OK tambem sao recusadas. A allowlist atual nao inclui fontes genericas. Feeds HTML, scraping de sites, fontes pagas/autenticadas e fontes sem termos verificados nao sao suportados. A pesquisa, as fontes avaliadas e as limitacoes estao em [`docs/job-source-audit.md`](docs/job-source-audit.md).
+
+O adaptador Jobicy mapeia cargo, empresa, elegibilidade geografica, descricao, tipo, nivel, categoria, salario, data e URL de origem. Como a localizacao e elegibilidade remota por pais, esses resultados ficam marcados como `locationScope: "remote"`, sem cidade ou municipio inventado. O coletor classifica localidades exatas com o codigo IBGE; Posto da Mata e Itabatã sao associados, respectivamente, a Nova Viçosa e Mucuri, sem criarem municipios novos. As demais classificacoes incluem `municipality`, `regional_extremo_sul`, `statewide_ba` e `unverified`. A disponibilidade da fonte e separada da validade calculada: vencimentos explicitos sao respeitados e, sem validade, aplica-se o TTL configurado ou padrao de 30 dias. `collectedAt` e `fetchedAt` registram a coleta, e o relatorio conta vagas ativas, expiradas e desatualizadas. O endpoint oficial de status marca a vaga como disponivel, indisponivel ou desconhecida; vagas fora da janela de sete dias nao sao automaticamente consideradas encerradas. A deduplicacao combina fonte, identificador/URL canonica e titulo/empresa normalizados, preservando referencias de origem em duplicatas entre fontes. A paginacao e limitada a 10 paginas (1.000 vagas); se houver mais resultados, o relatorio assinala a coleta parcial. Nenhum resultado e enviado para `jobs`.
+
+Para persistir leads em `automatedJobLeads` para triagem manual, somente apos autorizacao operacional, execute localmente `node functions/job-bot.js --persist` com `FIREBASE_SERVICE_ACCOUNT_JSON` configurado. Use uma conta de servico restrita ao projeto e mantenha o JSON apenas em um segredo/local seguro, nunca no repositorio. O caminho `--persist` e opt-in; o workflow agendado nao recebe credenciais e nao persiste. A persistencia usa a chave canonica de deduplicacao como ID, processa no maximo 200 leads unicos por execucao e preserva `createdAt`. Leads ainda pendentes podem receber dados atualizados; leads triados/revisados recebem somente metadados de rastreamento e validade. Em cada execucao sao lidos no maximo 200 candidatos vencidos em lotes de 100; pendencias expiradas sao marcadas sem exclusao e o relatorio indica quando o limite de reconciliacao foi atingido. O caminho usa transacoes do Admin SDK e nao altera a moderacao de `jobs`. A colecao e privada para leitura por admins no cliente.
+
+Testes focados: `node --test functions/job-bot.test.js`.
+
 ## Observacao
 
 O codigo nao usa vagas demonstrativas. A home mostra apenas vagas aprovadas vindas do Firestore.
