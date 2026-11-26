@@ -120,6 +120,11 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    match /automatedJobLeads/{leadId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

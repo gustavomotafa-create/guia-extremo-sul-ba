@@ -1,0 +1,39 @@
+name: Girassol Vagas daily job search
+
+on:
+  schedule:
+    - cron: "13 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  search:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run focused tests
+        run: node --test functions/job-bot.test.js
+
+      - name: Search Jobicy and other authorized public feeds (dry-run)
+        env:
+          JOB_SEARCH_SOURCES_JSON: ${{ vars.JOB_SEARCH_SOURCES_JSON || '[]' }}
+        run: node functions/job-bot.js --output reports/job-search-report.json
+
+      - name: Upload execution report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: girassol-job-search-report
+          path: reports/job-search-report.json
+          if-no-files-found: ignore
+          retention-days: 90
