@@ -1387,3 +1387,183 @@ test("main retains completed upserts when expiry reconciliation fails", async ()
   assert.equal(report.persistence.writes, 3);
   assert.equal(report.firestoreWrites, 3);
 });
+
+test("runs the regional feed and --persist pipeline against an in-memory repository", async () => {
+  const ibgeCodes = new Map([
+    ["Teixeira de Freitas", "2931350"],
+    ["Porto Seguro", "2925303"],
+    ["Eunápolis", "2910727"],
+    ["Nova Viçosa", "2923001"],
+    ["Mucuri", "2922003"],
+  ]);
+  const municipalities = municipalityListWithExtremoSul().map((municipality, index) => {
+    const name = index === 13 ? "Porto Seguro" : index === 14 ? "Eunápolis" : municipality.nome;
+    return {
+      ...municipality,
+      nome: name,
+      id: ibgeCodes.get(name) || municipality.id,
+    };
+  });
+  const records = [
+    {
+      id: "tf-001",
+      title: "Analista de RH",
+      company: "Rede Varejo Regional",
+      city: "Teixeira de Freitas",
+      url: "https://jobs.example.test/vagas/tf-001",
+      description: "Rotinas de recrutamento e apoio ao departamento pessoal.",
+    },
+    {
+      id: "ps-001",
+      title: "Vendedor interno",
+      company: "Comércio Costa do Descobrimento",
+      city: "Porto Seguro",
+      url: "https://jobs.example.test/vagas/ps-001",
+      description: "Atendimento ao cliente e organização da loja.",
+    },
+    {
+      id: "eu-001",
+      title: "Recepcionista",
+      company: "Clínica Exemplo Eunápolis",
+      city: "Eunápolis",
+      url: "https://jobs.example.test/vagas/eu-001",
+      description: "Atendimento presencial e agendamento de consultas.",
+    },
+    {
+      id: "nv-001",
+      title: "Técnico de manutenção",
+      company: "Serviços Regionais",
+      city: "Posto da Mata",
+      url: "https://jobs.example.test/vagas/nv-001",
+      description: "Manutenção preventiva em equipamentos comerciais.",
+    },
+    {
+      id: "mu-001",
+      title: "Auxiliar de logística",
+      company: "Distribuidora Exemplo",
+      city: "Itabatã",
+      url: "https://jobs.example.test/vagas/mu-001",
+      description: "Conferência de mercadorias e apoio ao estoque.",
+    },
+  ].map((record) => ({
+    ...record,
+    publishedAt: "2026-11-25T12:00:00.000Z",
+    validThrough: "2026-12-25T23:59:59.000Z",
+  }));
+  const feedRecords = [
+    ...records,
+    {
+      ...records[0],
+      id: "tf-001-duplicate",
+      title: "  ANALISTA DE RH ",
+      url: `${records[0].url}?utm_source=regional-test`,
+    },
+  ];
+  const configuredSource = registeredTestSource();
+  const fetchImpl = async (url) => {
+    const requestUrl = new URL(url);
+    if (requestUrl.hostname === "servicodados.ibge.gov.br") {
+      return response(municipalities);
+    }
+    if (requestUrl.href === configuredSource.feedUrl) {
+      return response({ jobs: feedRecords });
+    }
+    throw new Error(`Unexpected request in controlled test: ${requestUrl.href}`);
+  };
+  const now = new Date("2026-11-26T12:00:00.000Z");
+  const expiredDocument = ["previously-expired", {
+    reviewStatus: "pending_review",
+    triageStatus: "pending",
+    validityStatus: "active",
+    availability: "unknown",
+    expiresAt: "2026-11-25T00:00:00.000Z",
+  }];
+  const repository = mockLeadRepository([expiredDocument]);
+  const simulatedCredential = '{"simulated":true}';
+
+  const executePersistedSearch = () => main(["--persist"], {
+    env: {
+      JOB_SEARCH_SOURCES_JSON: "[]",
+      FIREBASE_SERVICE_ACCOUNT_JSON: simulatedCredential,
+    },
+    runJobSearch: ({ sourceWarnings }) => runJobSearch({
+      sources: [configuredSource],
+      fetchImpl,
+      now,
+      sourceWarnings,
+    }),
+    persistJobs: (jobs, credential, { onProgress }) => {
+      assert.equal(credential, simulatedCredential);
+      const preparedLeads = jobs.map(buildAutomatedJobLeadPayload);
+      for (const lead of preparedLeads) {
+        assert.equal(lead.origin, "automated_source");
+        assert.equal(lead.triageStatus, "pending");
+        assert.equal(lead.reviewStatus, "pending_review");
+      }
+      return persistJobsWithRepository(jobs, repository, { now, onProgress });
+    },
+    writeStdout: () => {},
+    setExitCode: (code) => { assert.fail(`Unexpected CLI exit code ${code}`); },
+  });
+
+  const firstReport = await executePersistedSearch();
+  const firstLeads = [...repository.documents.entries()]
+    .filter(([id]) => id !== "previously-expired");
+  const firstCreatedAt = new Map(firstLeads.map(([id, lead]) => [id, lead.createdAt]));
+  const firstRegionalJobs = firstReport.geographicSummary.extremoSulBahia.jobs;
+  const firstRegionalByCity = new Map(firstRegionalJobs.map((job) => [job.city, job]));
+
+  assert.equal(firstReport.municipalityCount, EXPECTED_MUNICIPALITY_COUNT);
+  assert.equal(firstReport.jobsNormalized, 5);
+  assert.equal(firstReport.duplicateJobs, 1);
+  assert.equal(firstReport.duplicatesIgnored, 1);
+  assert.equal(firstReport.geographicSummary.extremoSulBahia.count, 3);
+  assert.equal(firstRegionalByCity.get("Teixeira de Freitas").ibgeCode, "2931350");
+  assert.equal(firstRegionalByCity.get("Nova Viçosa").ibgeCode, "2923001");
+  assert.equal(firstRegionalByCity.get("Mucuri").ibgeCode, "2922003");
+  assert.equal(firstRegionalByCity.get("Nova Viçosa").locationLabel, "Posto da Mata, Nova Viçosa");
+  assert.equal(firstRegionalByCity.get("Mucuri").locationLabel, "Itabatã, Mucuri");
+  assert.equal(firstReport.geographicSummary.outrosMunicipiosBahia.count, 2);
+  const otherMunicipalities = new Map(
+    firstReport.geographicSummary.outrosMunicipiosBahia.jobs.map((job) => [job.city, job]),
+  );
+  assert.equal(otherMunicipalities.get("Porto Seguro").ibgeCode, "2925303");
+  assert.equal(otherMunicipalities.get("Eunápolis").ibgeCode, "2910727");
+  assert.equal(firstReport.persistence.created, 5);
+  assert.equal(firstReport.persistence.reconciliation.updated, 1);
+  assert.equal(firstReport.firestoreWrites, 6);
+
+  const approvedId = firstLeads.find(([, lead]) => lead.city === "Teixeira de Freitas")[0];
+  repository.documents.set(approvedId, {
+    ...repository.documents.get(approvedId),
+    title: "Título revisado pela equipe",
+    description: "Descrição curada manualmente.",
+    reviewStatus: "approved",
+    triageStatus: "approved",
+  });
+
+  const secondReport = await executePersistedSearch();
+  const preservedLead = repository.documents.get(approvedId);
+  const pendingLeads = [...repository.documents.entries()]
+    .filter(([id, lead]) => id !== "previously-expired" && id !== approvedId && lead.triageStatus === "pending");
+
+  assert.equal(secondReport.jobsNormalized, 5);
+  assert.equal(secondReport.duplicateJobs, 1);
+  assert.equal(secondReport.geographicSummary.extremoSulBahia.count, 3);
+  assert.equal(secondReport.persistence.created, 0);
+  assert.equal(secondReport.persistence.mergedPending, 4);
+  assert.equal(secondReport.persistence.trackingOnly, 1);
+  assert.equal(secondReport.persistence.writes, 5);
+  assert.equal(secondReport.firestoreWrites, 5);
+  assert.equal(repository.documents.size, 6);
+  assert.equal(preservedLead.reviewStatus, "approved");
+  assert.equal(preservedLead.triageStatus, "approved");
+  assert.equal(preservedLead.title, "Título revisado pela equipe");
+  assert.equal(preservedLead.description, "Descrição curada manualmente.");
+  assert.equal(preservedLead.seenCount, 2);
+  assert.equal(preservedLead.createdAt, firstCreatedAt.get(approvedId));
+  assert.equal(pendingLeads.length, 4);
+  assert.ok(pendingLeads.every(([, lead]) => lead.seenCount === 2));
+  assert.equal(repository.documents.get("previously-expired").validityStatus, "expired");
+  assert.equal(repository.documents.get("previously-expired").availability, "unavailable");
+});
