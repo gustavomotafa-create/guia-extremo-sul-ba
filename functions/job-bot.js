@@ -1215,9 +1215,33 @@ function buildExpiredLeadPatch(lead, now = new Date(), serverTimestamp = null) {
   };
 }
 
+function createPersistenceProgress() {
+  return {
+    created: 0,
+    mergedPending: 0,
+    trackingOnly: 0,
+    upserted: 0,
+    reconciliation: {
+      scanned: 0,
+      updated: 0,
+      batches: 0,
+      truncated: false,
+    },
+    writes: 0,
+  };
+}
+
+function copyPersistenceProgress(progress) {
+  return {
+    ...progress,
+    reconciliation: { ...progress.reconciliation },
+  };
+}
+
 async function reconcileExpiredPendingLeads(repository, now = new Date(), {
   batchSize = RECONCILE_BATCH_SIZE,
   maxBatches = MAX_RECONCILE_BATCHES,
+  onProgress = () => {},
 } = {}) {
   if (
     !repository
@@ -1241,6 +1265,9 @@ async function reconcileExpiredPendingLeads(repository, now = new Date(), {
   let updated = 0;
   let batches = 0;
   let lastBatchSize = 0;
+  let truncated = false;
+
+  const notifyProgress = () => onProgress({ scanned, updated, batches, truncated });
 
   while (batches < maxBatches) {
     const candidates = await repository.listExpiredCandidates({
@@ -1254,6 +1281,8 @@ async function reconcileExpiredPendingLeads(repository, now = new Date(), {
     batches += 1;
     scanned += candidates.length;
     lastBatchSize = candidates.length;
+    truncated = batches === maxBatches && lastBatchSize === batchSize;
+    notifyProgress();
 
     for (const candidate of candidates) {
       if (!candidate?.id || !buildExpiredLeadPatch(
@@ -1263,19 +1292,18 @@ async function reconcileExpiredPendingLeads(repository, now = new Date(), {
       )) {
         continue;
       }
-      if (await repository.reconcileLead(candidate.id, referenceDate)) updated += 1;
+      if (await repository.reconcileLead(candidate.id, referenceDate)) {
+        updated += 1;
+        notifyProgress();
+      }
     }
 
     if (candidates.length < batchSize) break;
     cursor = candidates[candidates.length - 1].cursor ?? candidates[candidates.length - 1].id;
   }
 
-  return {
-    scanned,
-    updated,
-    batches,
-    truncated: batches === maxBatches && lastBatchSize === batchSize,
-  };
+  notifyProgress();
+  return { scanned, updated, batches, truncated };
 }
 
 async function persistJobsWithRepository(jobs, repository, {
@@ -1283,6 +1311,7 @@ async function persistJobsWithRepository(jobs, repository, {
   maxLeads = MAX_PERSIST_LEADS_PER_RUN,
   reconciliationBatchSize = RECONCILE_BATCH_SIZE,
   reconciliationMaxBatches = MAX_RECONCILE_BATCHES,
+  onProgress = () => {},
 } = {}) {
   const referenceDate = validDate(now);
   if (!referenceDate) throw new Error("Persistence reference date must be valid.");
@@ -1308,7 +1337,10 @@ async function persistJobsWithRepository(jobs, repository, {
     throw new Error(`Persistence capped at ${maxLeads} unique leads per run; no leads were written.`);
   }
 
-  const counts = { created: 0, mergedPending: 0, trackingOnly: 0 };
+  const progress = createPersistenceProgress();
+  const notifyProgress = () => onProgress(copyPersistenceProgress(progress));
+  notifyProgress();
+
   for (const job of uniqueJobs.values()) {
     const result = await repository.upsertLead(job.deduplicationKey, (existing) => (
       buildLeadPersistencePlan(job, existing, {
@@ -1316,21 +1348,27 @@ async function persistJobsWithRepository(jobs, repository, {
         serverTimestamp: repository.serverTimestamp(),
       })
     ));
-    if (result?.action === "create") counts.created += 1;
-    else if (result?.action === "merge_pending") counts.mergedPending += 1;
-    else if (result?.action === "tracking_only") counts.trackingOnly += 1;
+    progress.upserted += 1;
+    progress.writes += 1;
+    if (result?.action === "create") progress.created += 1;
+    else if (result?.action === "merge_pending") progress.mergedPending += 1;
+    else if (result?.action === "tracking_only") progress.trackingOnly += 1;
+    notifyProgress();
   }
 
   const reconciliation = await reconcileExpiredPendingLeads(repository, referenceDate, {
     batchSize: reconciliationBatchSize,
     maxBatches: reconciliationMaxBatches,
+    onProgress: (reconciliationProgress) => {
+      progress.reconciliation = { ...reconciliationProgress };
+      progress.writes = progress.upserted + progress.reconciliation.updated;
+      notifyProgress();
+    },
   });
-  return {
-    ...counts,
-    upserted: uniqueJobs.size,
-    reconciliation,
-    writes: uniqueJobs.size + reconciliation.updated,
-  };
+  progress.reconciliation = reconciliation;
+  progress.writes = uniqueJobs.size + reconciliation.updated;
+  notifyProgress();
+  return copyPersistenceProgress(progress);
 }
 
 function summarizeGeographicJob(job) {
@@ -1613,7 +1651,7 @@ function createFirestoreLeadRepository(db, admin) {
   };
 }
 
-async function persistJobs(jobs, serviceAccountJson) {
+async function persistJobs(jobs, serviceAccountJson, options = {}) {
   if (!serviceAccountJson) {
     throw new Error("Firestore persistence requires FIREBASE_SERVICE_ACCOUNT_JSON.");
   }
@@ -1632,7 +1670,7 @@ async function persistJobs(jobs, serviceAccountJson) {
   );
   try {
     const repository = createFirestoreLeadRepository(app.firestore(), admin);
-    return await persistJobsWithRepository(jobs, repository);
+    return await persistJobsWithRepository(jobs, repository, options);
   } finally {
     await app.delete();
   }
@@ -1697,13 +1735,20 @@ function renderSummary(report) {
   return `${lines.join("\n")}\n`;
 }
 
-async function main(argv = process.argv.slice(2)) {
+async function main(argv = process.argv.slice(2), dependencies = {}) {
   const persist = argv.includes("--persist");
   const outputIndex = argv.indexOf("--output");
   const outputPath = outputIndex >= 0 ? argv[outputIndex + 1] : "";
+  const environment = dependencies.env || process.env;
+  const runJobSearchImpl = dependencies.runJobSearch || runJobSearch;
+  const persistJobsImpl = dependencies.persistJobs || persistJobs;
+  const writeStdout = dependencies.writeStdout || ((text) => process.stdout.write(text));
+  const setExitCode = dependencies.setExitCode || ((code) => {
+    process.exitCode = code;
+  });
   const sourceWarnings = [];
   const configuredSources = parseSources(
-    process.env.JOB_SEARCH_SOURCES_JSON || "[]",
+    environment.JOB_SEARCH_SOURCES_JSON || "[]",
     AUTHORIZED_GENERIC_FEEDS,
     sourceWarnings,
   );
@@ -1712,11 +1757,21 @@ async function main(argv = process.argv.slice(2)) {
     REMOTE_OK_SOURCE,
     ...configuredSources,
   ];
-  const { report, jobs } = await runJobSearch({ sources, sourceWarnings });
+  const { report, jobs } = await runJobSearchImpl({ sources, sourceWarnings });
 
   if (persist) {
+    report.persistence = createPersistenceProgress();
+    const updatePersistenceProgress = (progress) => {
+      report.persistence = copyPersistenceProgress(progress);
+      report.firestoreWrites = progress.writes;
+    };
+
     try {
-      report.persistence = await persistJobs(jobs, process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+      report.persistence = await persistJobsImpl(
+        jobs,
+        environment.FIREBASE_SERVICE_ACCOUNT_JSON,
+        { onProgress: updatePersistenceProgress },
+      );
       report.firestoreWrites = report.persistence.writes;
     } catch (error) {
       report.errors.push({ stage: "firestore", message: error.message });
@@ -1731,11 +1786,12 @@ async function main(argv = process.argv.slice(2)) {
   }
 
   const summary = renderSummary(report);
-  if (process.env.GITHUB_STEP_SUMMARY) {
-    fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary, "utf8");
+  if (environment.GITHUB_STEP_SUMMARY) {
+    fs.appendFileSync(environment.GITHUB_STEP_SUMMARY, summary, "utf8");
   }
-  process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
-  if (report.status === "failed" || report.status === "partial") process.exitCode = 1;
+  writeStdout(`${JSON.stringify(report, null, 2)}\n`);
+  if (report.status === "failed" || report.status === "partial") setExitCode(1);
+  return report;
 }
 
 if (require.main === module) {
@@ -1772,6 +1828,7 @@ module.exports = {
   fetchJobicyJobs,
   fetchRemoteOkJobs,
   fetchBahiaMunicipalities,
+  main,
   addRemoteOkSourceReference,
   addSourceReference,
   mapRemoteOkRecord,

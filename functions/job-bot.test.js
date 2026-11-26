@@ -24,6 +24,7 @@ const {
   mapRemoteOkRecord,
   mapJobicyRecord,
   normalizeJob,
+  main,
   parseSources,
   runJobSearch,
   validateMunicipalities,
@@ -140,6 +141,38 @@ function mockLeadRepository(initialDocuments = []) {
     },
   };
   return repository;
+}
+
+function reportFixture() {
+  return {
+    status: "completed",
+    municipalityCount: EXPECTED_MUNICIPALITY_COUNT,
+    sourcesConfigured: 1,
+    sourcesAttempted: 1,
+    sourcesSucceeded: 1,
+    sourceRecords: 1,
+    jobsNormalized: 1,
+    duplicateJobs: 0,
+    skippedRecords: 0,
+    availableJobs: 0,
+    unavailableJobs: 0,
+    unknownAvailabilityJobs: 1,
+    activeValidityJobs: 1,
+    expiredJobs: 0,
+    staleJobs: 0,
+    duplicatesIgnored: 0,
+    countryRemoteJobs: 0,
+    firestoreWrites: 0,
+    geographicSummary: {
+      extremoSulBahia: { count: 0, jobs: [] },
+      outrosMunicipiosBahia: { count: 0, jobs: [] },
+      remotoBrasil: { count: 0, jobs: [] },
+      semLocalConfirmado: { count: 0, jobs: [] },
+    },
+    sourceResults: [],
+    warnings: [],
+    errors: [],
+  };
 }
 
 test("validates exactly 417 unique Bahia municipalities", () => {
@@ -1223,4 +1256,134 @@ test("rejects persistence batches above the limit before writing any lead", asyn
     /capped at 200 unique leads per run; no leads were written/,
   );
   assert.equal(repository.documents.size, 0);
+});
+
+test("main activates --persist with injected credentials and reports completed writes", async () => {
+  const job = normalizedPersistenceJob();
+  const repository = mockLeadRepository();
+  const simulatedCredential = '{"simulated":true}';
+  const exitCodes = [];
+  let persistenceCalls = 0;
+  let stdout = "";
+  const report = await main(["--persist"], {
+    env: {
+      JOB_SEARCH_SOURCES_JSON: "[]",
+      FIREBASE_SERVICE_ACCOUNT_JSON: simulatedCredential,
+    },
+    runJobSearch: async () => ({ report: reportFixture(), jobs: [job] }),
+    persistJobs: async (jobs, credential, { onProgress }) => {
+      persistenceCalls += 1;
+      assert.equal(credential, simulatedCredential);
+      return persistJobsWithRepository(jobs, repository, {
+        now: new Date("2026-01-10T00:00:00.000Z"),
+        onProgress,
+      });
+    },
+    writeStdout: (text) => { stdout += text; },
+    setExitCode: (code) => exitCodes.push(code),
+  });
+
+  assert.equal(persistenceCalls, 1);
+  assert.equal(report.persistence.created, 1);
+  assert.equal(report.persistence.upserted, 1);
+  assert.equal(report.persistence.writes, 1);
+  assert.equal(report.firestoreWrites, 1);
+  assert.equal(report.status, "completed");
+  assert.deepEqual(exitCodes, []);
+  assert.equal(JSON.parse(stdout).firestoreWrites, 1);
+});
+
+test("main retains confirmed persistence counts when a later lead write fails", async () => {
+  const jobs = [
+    normalizedPersistenceJob(),
+    normalizedPersistenceJob({
+      id: "persistence-second",
+      url: "https://jobs.example.test/vagas/persistence-second",
+    }),
+  ];
+  const repository = mockLeadRepository();
+  const upsertLead = repository.upsertLead.bind(repository);
+  let attempts = 0;
+  repository.upsertLead = async (...args) => {
+    attempts += 1;
+    if (attempts === 2) throw new Error("simulated write failure");
+    return upsertLead(...args);
+  };
+  const exitCodes = [];
+  const report = await main(["--persist"], {
+    env: {
+      JOB_SEARCH_SOURCES_JSON: "[]",
+      FIREBASE_SERVICE_ACCOUNT_JSON: '{"simulated":true}',
+    },
+    runJobSearch: async () => ({ report: reportFixture(), jobs }),
+    persistJobs: (leads, _credential, { onProgress }) => persistJobsWithRepository(
+      leads,
+      repository,
+      { now: new Date("2026-01-10T00:00:00.000Z"), onProgress },
+    ),
+    writeStdout: () => {},
+    setExitCode: (code) => exitCodes.push(code),
+  });
+
+  assert.equal(report.status, "partial");
+  assert.deepEqual(report.errors.map(({ stage }) => stage), ["firestore"]);
+  assert.equal(report.persistence.created, 1);
+  assert.equal(report.persistence.upserted, 1);
+  assert.equal(report.persistence.writes, 1);
+  assert.equal(report.firestoreWrites, 1);
+  assert.deepEqual(exitCodes, [1]);
+});
+
+test("main retains completed upserts when expiry reconciliation fails", async () => {
+  const jobs = [
+    normalizedPersistenceJob(),
+    normalizedPersistenceJob({
+      id: "persistence-second",
+      url: "https://jobs.example.test/vagas/persistence-second",
+    }),
+  ];
+  const repository = mockLeadRepository([
+    ["expired-first", {
+      reviewStatus: "pending_review",
+      triageStatus: "pending",
+      validityStatus: "active",
+      expiresAt: "2026-01-09T00:00:00.000Z",
+    }],
+    ["expired-second", {
+      reviewStatus: "pending_review",
+      triageStatus: "pending",
+      validityStatus: "active",
+      expiresAt: "2026-01-09T00:00:00.000Z",
+    }],
+  ]);
+  const reconcileLead = repository.reconcileLead.bind(repository);
+  let reconciliations = 0;
+  repository.reconcileLead = async (...args) => {
+    reconciliations += 1;
+    if (reconciliations === 2) throw new Error("simulated reconciliation failure");
+    return reconcileLead(...args);
+  };
+  const report = await main(["--persist"], {
+    env: {
+      JOB_SEARCH_SOURCES_JSON: "[]",
+      FIREBASE_SERVICE_ACCOUNT_JSON: '{"simulated":true}',
+    },
+    runJobSearch: async () => ({ report: reportFixture(), jobs }),
+    persistJobs: (leads, _credential, { onProgress }) => persistJobsWithRepository(
+      leads,
+      repository,
+      { now: new Date("2026-01-10T00:00:00.000Z"), onProgress },
+    ),
+    writeStdout: () => {},
+    setExitCode: () => {},
+  });
+
+  assert.equal(report.status, "partial");
+  assert.deepEqual(report.errors.map(({ stage }) => stage), ["firestore"]);
+  assert.equal(report.persistence.created, 2);
+  assert.equal(report.persistence.upserted, 2);
+  assert.equal(report.persistence.reconciliation.scanned, 2);
+  assert.equal(report.persistence.reconciliation.updated, 1);
+  assert.equal(report.persistence.writes, 3);
+  assert.equal(report.firestoreWrites, 3);
 });
