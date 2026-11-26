@@ -83,6 +83,20 @@ function registeredTestSource(overrides = {}) {
   )[0];
 }
 
+function authorizedSourcesJson(overrides = {}) {
+  const configured = { ...source, ...overrides };
+  return JSON.stringify([{
+    id: configured.id,
+    name: configured.name,
+    type: "json",
+    enabled: true,
+    authorized: true,
+    url: configured.feedUrl,
+    termsUrl: configured.termsUrl,
+    attributionUrl: configured.attributionUrl,
+  }]);
+}
+
 function normalizedPersistenceJob(overrides = {}, now = new Date("2026-01-10T00:00:00.000Z")) {
   const municipalities = validateMunicipalities(municipalityListWithExtremoSul());
   return normalizeJob({
@@ -1267,7 +1281,7 @@ test("main activates --persist with injected credentials and reports completed w
   let stdout = "";
   const report = await main(["--persist"], {
     env: {
-      JOB_SEARCH_SOURCES_JSON: "[]",
+      JOB_SEARCH_SOURCES_JSON: authorizedSourcesJson(),
       FIREBASE_SERVICE_ACCOUNT_JSON: simulatedCredential,
     },
     runJobSearch: async () => ({ report: reportFixture(), jobs: [job] }),
@@ -1293,6 +1307,126 @@ test("main activates --persist with injected credentials and reports completed w
   assert.equal(JSON.parse(stdout).firestoreWrites, 1);
 });
 
+test("main persists a valid configured feed once per canonical lead across repeated runs", async () => {
+  const feedUrl = "https://authorized.example.test/api/jobs";
+  const configuredSource = registeredTestSource({
+    id: "workflow-persist-source",
+    name: "Workflow test feed",
+    feedUrl,
+    url: feedUrl,
+  });
+  const sourceJson = authorizedSourcesJson({
+    id: configuredSource.id,
+    name: configuredSource.name,
+    feedUrl,
+    url: feedUrl,
+  });
+  const record = {
+    id: "feed-job-1",
+    title: "Assistente administrativo",
+    company: "Empresa do Feed",
+    city: "Teixeira de Freitas",
+    url: "https://authorized.example.test/jobs/1",
+    description: "Apoio administrativo e atendimento.",
+    publishedAt: "2026-11-25T10:00:00.000Z",
+    validThrough: "2026-12-25T10:00:00.000Z",
+  };
+  const municipalities = municipalityListWithExtremoSul();
+  const now = new Date("2026-11-26T12:00:00.000Z");
+  const repository = mockLeadRepository();
+  const simulatedCredential = '{"simulated":true}';
+  const fetchImpl = async (url) => {
+    const requestUrl = new URL(url);
+    if (requestUrl.hostname === "servicodados.ibge.gov.br") return response(municipalities);
+    if (requestUrl.href === feedUrl) {
+      return response({ jobs: [record, { ...record, id: "feed-job-duplicate" }] });
+    }
+    throw new Error(`Unexpected request in persisted-source test: ${requestUrl.href}`);
+  };
+  let persistenceCalls = 0;
+  const execute = () => main(["--persist"], {
+    env: {
+      JOB_SEARCH_SOURCES_JSON: sourceJson,
+      FIREBASE_SERVICE_ACCOUNT_JSON: simulatedCredential,
+    },
+    runJobSearch: ({ sources, sourceWarnings }) => {
+      const configured = sources.filter(({ id }) => id === configuredSource.id);
+      assert.equal(configured.length, 1);
+      return runJobSearch({ sources: configured, fetchImpl, now, sourceWarnings });
+    },
+    persistJobs: (jobs, credential, { onProgress }) => {
+      persistenceCalls += 1;
+      assert.equal(credential, simulatedCredential);
+      return persistJobsWithRepository(jobs, repository, { now, onProgress });
+    },
+    writeStdout: () => {},
+    setExitCode: (code) => { assert.fail(`Unexpected CLI exit code ${code}`); },
+  });
+
+  const first = await execute();
+  const second = await execute();
+
+  assert.equal(first.jobsNormalized, 1);
+  assert.equal(first.duplicateJobs, 1);
+  assert.equal(first.persistence.created, 1);
+  assert.equal(first.persistence.upserted, 1);
+  assert.equal(first.firestoreWrites, 1);
+  assert.equal(second.persistence.created, 0);
+  assert.equal(second.persistence.mergedPending, 1);
+  assert.equal(second.persistence.upserted, 1);
+  assert.equal(second.firestoreWrites, 1);
+  assert.equal(repository.documents.size, 1);
+  assert.equal([...repository.documents.values()][0].seenCount, 2);
+  assert.equal(persistenceCalls, 2);
+});
+
+test("main skips --persist without configured authorized JSON feeds and fails closed on malformed JSON", async () => {
+  const job = normalizedPersistenceJob();
+  let persistenceCalls = 0;
+
+  for (const configuredSources of [undefined, ""]) {
+    const env = { FIREBASE_SERVICE_ACCOUNT_JSON: '{"simulated":true}' };
+    if (configuredSources !== undefined) env.JOB_SEARCH_SOURCES_JSON = configuredSources;
+    const report = await main(["--persist"], {
+      env,
+      runJobSearch: async () => ({ report: reportFixture(), jobs: [job] }),
+      persistJobs: async () => {
+        persistenceCalls += 1;
+        return persistJobsWithRepository([job], mockLeadRepository());
+      },
+      writeStdout: () => {},
+      setExitCode: (code) => { assert.fail(`Unexpected CLI exit code ${code}`); },
+    });
+
+    assert.equal(report.persistence.skipped, true);
+    assert.equal(report.firestoreWrites, 0);
+    assert.match(report.persistence.reason, /não contém fontes JSON autorizadas/);
+    assert.ok(report.warnings.some(({ message }) => /nenhuma gravação/.test(message)));
+  }
+
+  let searches = 0;
+  await assert.rejects(
+    main(["--persist"], {
+      env: {
+        JOB_SEARCH_SOURCES_JSON: "{malformed",
+        FIREBASE_SERVICE_ACCOUNT_JSON: '{"simulated":true}',
+      },
+      runJobSearch: async () => {
+        searches += 1;
+        return { report: reportFixture(), jobs: [job] };
+      },
+      persistJobs: async () => {
+        persistenceCalls += 1;
+        return persistJobsWithRepository([job], mockLeadRepository());
+      },
+      writeStdout: () => {},
+    }),
+    /JOB_SEARCH_SOURCES_JSON must be valid JSON/,
+  );
+  assert.equal(searches, 0);
+  assert.equal(persistenceCalls, 0);
+});
+
 test("main retains confirmed persistence counts when a later lead write fails", async () => {
   const jobs = [
     normalizedPersistenceJob(),
@@ -1312,7 +1446,7 @@ test("main retains confirmed persistence counts when a later lead write fails", 
   const exitCodes = [];
   const report = await main(["--persist"], {
     env: {
-      JOB_SEARCH_SOURCES_JSON: "[]",
+      JOB_SEARCH_SOURCES_JSON: authorizedSourcesJson(),
       FIREBASE_SERVICE_ACCOUNT_JSON: '{"simulated":true}',
     },
     runJobSearch: async () => ({ report: reportFixture(), jobs }),
@@ -1365,7 +1499,7 @@ test("main retains completed upserts when expiry reconciliation fails", async ()
   };
   const report = await main(["--persist"], {
     env: {
-      JOB_SEARCH_SOURCES_JSON: "[]",
+      JOB_SEARCH_SOURCES_JSON: authorizedSourcesJson(),
       FIREBASE_SERVICE_ACCOUNT_JSON: '{"simulated":true}',
     },
     runJobSearch: async () => ({ report: reportFixture(), jobs }),
@@ -1483,7 +1617,7 @@ test("runs the regional feed and --persist pipeline against an in-memory reposit
 
   const executePersistedSearch = () => main(["--persist"], {
     env: {
-      JOB_SEARCH_SOURCES_JSON: "[]",
+      JOB_SEARCH_SOURCES_JSON: authorizedSourcesJson(),
       FIREBASE_SERVICE_ACCOUNT_JSON: simulatedCredential,
     },
     runJobSearch: ({ sourceWarnings }) => runJobSearch({

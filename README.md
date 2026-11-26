@@ -97,6 +97,16 @@ Parametros usados pelas Functions:
 
 Os parametros `PUBLIC_SITE_URL` e `PUBLIC_FUNCTIONS_URL` podem ser preenchidos quando o Firebase CLI pedir no deploy, ou via arquivo `.env` dentro de `functions/`.
 
+### Validacao local com Firebase Emulator Suite
+
+`firebase.json` aponta para `firestore.rules` e para a pasta `functions`, mas nao define portas de emuladores. O comando abaixo usa as portas padrao locais (Auth `9099`, Firestore `8080`, Functions `5001`) e um project ID `demo-*`, sem acessar o projeto configurado em `.firebaserc`. E necessario ter Firebase CLI, Java e dependencias de `functions` instalados. A integracao verifica regras de escrita do cliente, publicacao moderada, verificacao de empresa, edicao e triagem de leads usando somente os emuladores:
+
+```powershell
+firebase emulators:exec --project demo-girassol-vagas --only auth,firestore,functions "node --test functions/emulator.integration.test.js"
+```
+
+O teste tambem e incluido na suite `node --test functions/*.test.js`; fora do Emulator Suite ele fica marcado como ignorado. O script recusa endpoints que nao sejam locais e exige o project ID isolado `demo-girassol-vagas`.
+
 ## Publicacao no GitHub Pages
 
 O site esta pronto para GitHub Pages usando:

@@ -1693,12 +1693,20 @@ function renderSummary(report) {
   ];
 
   if (report.persistence) {
-    lines.push(
-      "### Persistência de leads automatizados",
-      `- Upserts / novos / pendentes atualizados / revisados preservados: ${report.persistence.upserted} / ${report.persistence.created} / ${report.persistence.mergedPending} / ${report.persistence.trackingOnly}`,
-      `- Leads expirados reconciliados: ${report.persistence.reconciliation.updated} de ${report.persistence.reconciliation.scanned} lidos${report.persistence.reconciliation.truncated ? " (limite atingido; há possíveis pendências adicionais)" : ""}`,
-      "",
-    );
+    if (report.persistence.skipped) {
+      lines.push(
+        "### Persistência de leads automatizados",
+        `- Persistência não executada: ${report.persistence.reason}`,
+        "",
+      );
+    } else {
+      lines.push(
+        "### Persistência de leads automatizados",
+        `- Upserts / novos / pendentes atualizados / revisados preservados: ${report.persistence.upserted} / ${report.persistence.created} / ${report.persistence.mergedPending} / ${report.persistence.trackingOnly}`,
+        `- Leads expirados reconciliados: ${report.persistence.reconciliation.updated} de ${report.persistence.reconciliation.scanned} lidos${report.persistence.reconciliation.truncated ? " (limite atingido; há possíveis pendências adicionais)" : ""}`,
+        "",
+      );
+    }
   }
 
   const geographic = report.geographicSummary;
@@ -1759,7 +1767,18 @@ async function main(argv = process.argv.slice(2), dependencies = {}) {
   ];
   const { report, jobs } = await runJobSearchImpl({ sources, sourceWarnings });
 
-  if (persist) {
+  if (persist && configuredSources.length === 0) {
+    report.persistence = {
+      ...createPersistenceProgress(),
+      skipped: true,
+      reason: "JOB_SEARCH_SOURCES_JSON não contém fontes JSON autorizadas e habilitadas.",
+    };
+    report.firestoreWrites = 0;
+    report.warnings.push({
+      sourceId: null,
+      message: "A opção --persist foi ignorada; nenhuma gravação foi feita no Firestore.",
+    });
+  } else if (persist) {
     report.persistence = createPersistenceProgress();
     const updatePersistenceProgress = (progress) => {
       report.persistence = copyPersistenceProgress(progress);
