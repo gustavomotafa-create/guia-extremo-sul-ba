@@ -1,5 +1,6 @@
 const crypto = require("node:crypto");
 const fs = require("node:fs");
+const net = require("node:net");
 const path = require("node:path");
 
 const IBGE_MUNICIPALITIES_URL = "https://servicodados.ibge.gov.br/api/v1/localidades/estados/BA/municipios";
@@ -8,6 +9,9 @@ const JOBICY_DOCUMENTATION_URL = "https://jobicy.com/jobs-rss-feed";
 const REMOTE_OK_API_URL = "https://remoteok.com/api";
 const EXPECTED_MUNICIPALITY_COUNT = 417;
 const REQUEST_TIMEOUT_MS = 15000;
+const SOURCE_REQUEST_TIMEOUT_MS = 8000;
+const MAX_SOURCE_RESPONSE_BYTES = 2 * 1024 * 1024;
+const MAX_GEOGRAPHIC_SUMMARY_JOBS = 200;
 const JOBICY_PAGE_SIZE = 100;
 const JOBICY_MAX_PAGES = 10;
 const JOBICY_REQUEST_GAP_MS = 1100;
@@ -94,11 +98,100 @@ function validatePublicUrl(value, label) {
     || url.username
     || url.password
     || [...url.searchParams.keys()].some((key) => /token|secret|credential|api[_-]?key|auth/i.test(key))
+    || isBlockedHostname(url.hostname)
   ) {
     throw new Error(`${label} must be a public HTTPS URL without embedded credentials.`);
   }
 
   return url.href;
+}
+
+function ipv4IsNonPublic(hostname) {
+  const octets = hostname.split(".").map(Number);
+  if (octets.length !== 4 || octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) {
+    return true;
+  }
+  const [first, second] = octets;
+  return first === 0
+    || first === 10
+    || first === 127
+    || first >= 224
+    || (first === 100 && second >= 64 && second <= 127)
+    || (first === 169 && second === 254)
+    || (first === 172 && second >= 16 && second <= 31)
+    || (first === 192 && (second === 0 || second === 168))
+    || (first === 198 && (second === 18 || second === 19 || second === 51))
+    || (first === 203 && second === 0);
+}
+
+function ipv6ToBigInt(hostname) {
+  let value = hostname.toLowerCase();
+  if (value.includes(".")) {
+    const lastColon = value.lastIndexOf(":");
+    const ipv4 = value.slice(lastColon + 1);
+    if (net.isIP(ipv4) !== 4) return null;
+    const octets = ipv4.split(".").map(Number);
+    const firstGroup = ((octets[0] << 8) | octets[1]).toString(16);
+    const secondGroup = ((octets[2] << 8) | octets[3]).toString(16);
+    value = `${value.slice(0, lastColon)}:${firstGroup}:${secondGroup}`;
+  }
+
+  const halves = value.split("::");
+  if (halves.length > 2) return null;
+  const left = halves[0] ? halves[0].split(":") : [];
+  const right = halves.length === 2 && halves[1] ? halves[1].split(":") : [];
+  const missing = 8 - left.length - right.length;
+  if ((halves.length === 1 && missing !== 0) || (halves.length === 2 && missing < 1)) return null;
+  const groups = halves.length === 2
+    ? [...left, ...Array(missing).fill("0"), ...right]
+    : left;
+  if (groups.length !== 8 || groups.some((group) => !/^[0-9a-f]{1,4}$/.test(group))) return null;
+  return groups.reduce((result, group) => (result << 16n) | BigInt(`0x${group}`), 0n);
+}
+
+function ipv6IsNonPublic(hostname) {
+  const address = ipv6ToBigInt(hostname);
+  if (address == null) return true;
+  if (address === 0n || address === 1n) return true;
+
+  const prefix = (bits) => address >> BigInt(128 - bits);
+  if (
+    prefix(7) === 0x7en
+    || prefix(10) === 0x3fan
+    || prefix(10) === 0x3fbn
+    || prefix(8) === 0xffn
+    || prefix(32) === 0x20010db8n
+  ) {
+    return true;
+  }
+
+  const upper96 = address >> 32n;
+  if (upper96 === 0xffffn) {
+    const ipv4 = Number(address & 0xffffffffn);
+    const mappedHostname = [
+      (ipv4 >>> 24) & 255,
+      (ipv4 >>> 16) & 255,
+      (ipv4 >>> 8) & 255,
+      ipv4 & 255,
+    ].join(".");
+    return ipv4IsNonPublic(mappedHostname);
+  }
+  return upper96 === 0n;
+}
+
+function isBlockedHostname(hostname) {
+  const normalized = String(hostname || "").toLowerCase().replace(/^\[|\]$/g, "").replace(/\.$/, "");
+  if (
+    normalized === "localhost"
+    || normalized.endsWith(".localhost")
+    || normalized.endsWith(".local")
+  ) {
+    return true;
+  }
+  const ipVersion = net.isIP(normalized);
+  if (ipVersion === 4) return ipv4IsNonPublic(normalized);
+  if (ipVersion === 6) return ipv6IsNonPublic(normalized);
+  return false;
 }
 
 function positiveDays(value, fallback, label = "ttlDays") {
@@ -198,6 +291,58 @@ function isRemoteOkLabel(value) {
   return normalizeText(value).replace(/[^a-z0-9]/g, "").includes("remoteok");
 }
 
+function isBlockedSourceLabel(value) {
+  const normalized = normalizeText(value);
+  const compact = normalized.replace(/[^a-z0-9]/g, "");
+  return isRemoteOkLabel(value)
+    || compact.includes("remotive")
+    || /(^|[^a-z])sine(bahia)?([^a-z]|$)/.test(normalized);
+}
+
+function isBlockedSourceHost(value) {
+  try {
+    const hostname = new URL(value).hostname.toLowerCase().replace(/\.$/, "");
+    return isRemoteOkHost(value)
+      || hostname === "remotive.com"
+      || hostname.endsWith(".remotive.com")
+      || hostname.split(".").some((label) => label.includes("sine"))
+      || [
+        "maisemprego.mte.gov.br",
+        "empregabrasil.mte.gov.br",
+        "sine.mte.gov.br",
+      ].some((blockedHost) => hostname === blockedHost || hostname.endsWith(`.${blockedHost}`));
+  } catch {
+    return false;
+  }
+}
+
+function recordIdentifiesBlockedSource(record) {
+  if (!record || typeof record !== "object") return false;
+  const sourceMetadata = record.source && typeof record.source === "object"
+    ? record.source
+    : {};
+  const labels = [
+    record.provider,
+    record.source,
+    record.sourceName,
+    record.sourceId,
+    record.source_name,
+    sourceMetadata.provider,
+    sourceMetadata.id,
+    sourceMetadata.name,
+  ];
+  const urls = [
+    record.url,
+    record.sourceUrl,
+    record.apply_url,
+    record.applyUrl,
+    record.jobUrl,
+    record.link,
+    sourceMetadata.url,
+  ];
+  return labels.some(isBlockedSourceLabel) || urls.some(isBlockedSourceHost);
+}
+
 function mapRemoteOkRecord(record) {
   if (!record || typeof record !== "object" || Array.isArray(record)) return null;
 
@@ -256,7 +401,56 @@ async function fetchBahiaMunicipalities(fetchImpl = fetch) {
   return validateMunicipalities(await response.json());
 }
 
-function parseSources(rawValue = "[]", approvedFeeds = AUTHORIZED_GENERIC_FEEDS) {
+function addSourceWarning(warnings, sourceId, index, message) {
+  warnings.push({ sourceId: sourceId || null, index, message });
+}
+
+function validateFieldMapping(fieldMapping) {
+  if (fieldMapping == null) return {};
+  if (!fieldMapping || typeof fieldMapping !== "object" || Array.isArray(fieldMapping)) {
+    throw new Error("fieldMapping must be a JSON object.");
+  }
+  const supportedFields = new Set([
+    "id",
+    "title",
+    "company",
+    "location",
+    "city",
+    "modality",
+    "url",
+    "publishedAt",
+    "validThrough",
+    "description",
+    "salary",
+    "contract",
+    "country",
+    "available",
+  ]);
+  const result = {};
+  for (const [field, fieldPath] of Object.entries(fieldMapping)) {
+    if (!supportedFields.has(field) || typeof fieldPath !== "string") {
+      throw new Error(`fieldMapping contains an unsupported field or non-string path: ${field}.`);
+    }
+    const pathParts = fieldPath.split(".");
+    if (
+      pathParts.length > 8
+      || pathParts.some((part) => (
+        !/^[a-zA-Z0-9_$-]+$/.test(part)
+        || ["__proto__", "prototype", "constructor"].includes(part)
+      ))
+    ) {
+      throw new Error(`fieldMapping path for ${field} is invalid.`);
+    }
+    result[field] = fieldPath;
+  }
+  return result;
+}
+
+function parseSources(
+  rawValue = "[]",
+  approvedFeeds = AUTHORIZED_GENERIC_FEEDS,
+  warnings = [],
+) {
   let configured;
   try {
     configured = JSON.parse(rawValue);
@@ -265,33 +459,140 @@ function parseSources(rawValue = "[]", approvedFeeds = AUTHORIZED_GENERIC_FEEDS)
   }
   if (!Array.isArray(configured)) throw new Error("JOB_SEARCH_SOURCES_JSON must be a JSON array.");
 
-  return configured.map((source, index) => {
+  const parsedSources = [];
+  configured.forEach((source, index) => {
+    if (!source || typeof source !== "object" || Array.isArray(source)) {
+      addSourceWarning(warnings, null, index, "Source entry must be a JSON object; it was ignored.");
+      return;
+    }
     const id = String(source.id || "").trim();
     const name = String(source.name || "").trim();
-    if (!id || !name) throw new Error(`Source at index ${index} must have an id and name.`);
-    if (isRemoteOkLabel(`${id} ${name}`)) {
-      throw new Error("Remote OK is disabled and cannot be configured as a generic feed.");
+    const rawUrl = source.url;
+    const identity = `${id} ${name} ${source.provider || ""}`;
+    if (
+      isBlockedSourceLabel(identity)
+      || isBlockedSourceHost(rawUrl)
+      || isBlockedSourceHost(source.attributionUrl)
+      || isBlockedSourceHost(source.termsUrl)
+    ) {
+      throw new Error("Remote OK, Remotive, and SINE sources are blocked from generic-feed configuration.");
     }
-    const feedUrl = validatePublicUrl(source.feedUrl, `Source ${id} feedUrl`);
-    const termsUrl = validatePublicUrl(source.termsUrl, `Source ${id} termsUrl`);
-    if (isRemoteOkHost(feedUrl) || isRemoteOkHost(termsUrl)) {
-      throw new Error("Remote OK is disabled and cannot be configured as a generic feed.");
+    if (source.enabled !== true) {
+      addSourceWarning(warnings, id, index, "Source is not explicitly enabled; it was ignored.");
+      return;
     }
-    if (approvedFeeds.get(id) !== feedUrl) {
-      throw new Error(`Source ${id} is not registered in the code-reviewed generic feed allowlist.`);
+    if (source.authorized !== true) {
+      addSourceWarning(warnings, id, index, "Source lacks explicit authorization; it was ignored.");
+      return;
+    }
+    if (source.type !== "json") {
+      addSourceWarning(warnings, id, index, "Source type must be explicitly set to json; it was ignored.");
+      return;
+    }
+    if (!id || !name || typeof rawUrl !== "string" || typeof source.attributionUrl !== "string") {
+      addSourceWarning(
+        warnings,
+        id,
+        index,
+        "Source requires id, name, url, and attributionUrl; it was ignored.",
+      );
+      return;
+    }
+
+    let feedUrl;
+    let attributionUrl;
+    let termsUrl;
+    let fieldMapping;
+    try {
+      feedUrl = validatePublicUrl(rawUrl, `Source ${id} url`);
+      attributionUrl = validatePublicUrl(source.attributionUrl, `Source ${id} attributionUrl`);
+      termsUrl = source.termsUrl
+        ? validatePublicUrl(source.termsUrl, `Source ${id} termsUrl`)
+        : attributionUrl;
+      fieldMapping = validateFieldMapping(source.fieldMapping);
+    } catch (error) {
+      addSourceWarning(warnings, id, index, `${error.message} Source was ignored.`);
+      return;
+    }
+    if (isBlockedSourceHost(feedUrl) || isBlockedSourceHost(attributionUrl) || isBlockedSourceHost(termsUrl)) {
+      throw new Error("Remote OK, Remotive, and SINE sources are blocked from generic-feed configuration.");
+    }
+    if (approvedFeeds.has(id) && approvedFeeds.get(id) !== feedUrl) {
+      addSourceWarning(warnings, id, index, "Configured URL differs from the reviewed URL; source was ignored.");
+      return;
+    }
+    let ttlDays;
+    let staleAfterDays;
+    try {
+      ttlDays = positiveDays(source.ttlDays, DEFAULT_JOB_TTL_DAYS, `Source ${id} ttlDays`);
+      staleAfterDays = positiveDays(source.staleAfterDays, DEFAULT_STALE_AFTER_DAYS, `Source ${id} staleAfterDays`);
+    } catch (error) {
+      addSourceWarning(warnings, id, index, `${error.message} Source was ignored.`);
+      return;
     }
     const parsedSource = {
       id,
       name,
+      type: "json",
+      enabled: true,
       feedUrl,
+      attributionUrl,
       termsUrl,
-      authorized: source.authorized === true && source.termsReviewed === true,
-      ttlDays: positiveDays(source.ttlDays, DEFAULT_JOB_TTL_DAYS, `Source ${id} ttlDays`),
-      staleAfterDays: positiveDays(source.staleAfterDays, DEFAULT_STALE_AFTER_DAYS, `Source ${id} staleAfterDays`),
+      fieldMapping,
+      authorized: true,
+      ttlDays,
+      staleAfterDays,
     };
     Object.defineProperty(parsedSource, APPROVED_GENERIC_SOURCE, { value: true });
-    return parsedSource;
+    parsedSources.push(parsedSource);
   });
+  return parsedSources;
+}
+
+function readMappedValue(record, fieldMapping, key, fallbacks = []) {
+  const configuredPath = fieldMapping[key];
+  const paths = configuredPath ? [configuredPath] : fallbacks;
+  for (const fieldPath of paths) {
+    let value = record;
+    for (const part of fieldPath.split(".")) {
+      if (!value || typeof value !== "object" || !Object.hasOwn(value, part)) {
+        value = undefined;
+        break;
+      }
+      value = value[part];
+    }
+    if (value !== undefined && value !== null && value !== "") return value;
+  }
+  return undefined;
+}
+
+function mapConfiguredJsonRecord(record, source) {
+  if (!record || typeof record !== "object" || Array.isArray(record)) return null;
+  const mapping = source.fieldMapping || {};
+  const location = mapping.location
+    ? readMappedValue(record, mapping, "location")
+    : mapping.city
+      ? readMappedValue(record, mapping, "city")
+      : readMappedValue(record, mapping, "location", ["city", "location", "sourceLocation"]);
+  const country = readMappedValue(record, mapping, "country", ["country", "countryEligibility"]);
+  const normalizedCountry = normalizeText(country ?? location);
+  const brazilEligible = /(^|[^a-z])(brazil|brasil)([^a-z]|$)/.test(normalizedCountry);
+  return {
+    id: readMappedValue(record, mapping, "id", ["id", "externalId"]),
+    title: readMappedValue(record, mapping, "title", ["title"]),
+    companyName: readMappedValue(record, mapping, "company", ["companyName", "company"]),
+    city: location,
+    location,
+    modality: readMappedValue(record, mapping, "modality", ["modality"]),
+    url: readMappedValue(record, mapping, "url", ["url", "sourceUrl", "applyUrl"]),
+    publishedAt: readMappedValue(record, mapping, "publishedAt", ["publishedAt", "published_at"]),
+    validThrough: readMappedValue(record, mapping, "validThrough", ["validThrough", "expiresAt"]),
+    description: readMappedValue(record, mapping, "description", ["description"]),
+    salary: readMappedValue(record, mapping, "salary", ["salary"]),
+    contract: readMappedValue(record, mapping, "contract", ["contract"]),
+    available: readMappedValue(record, mapping, "available", ["available"]),
+    countryEligibility: brazilEligible ? "Brazil" : null,
+  };
 }
 
 function findMunicipalityMatch(value, municipalities) {
@@ -453,6 +754,7 @@ function normalizeJob(record, source, municipalities, now = new Date()) {
   const id = sourceRecordId
     ? stableHash(`${source.id}\n${normalizeText(sourceRecordId)}`)
     : deduplicationKey;
+  const termsUrl = source.termsUrl || source.attributionUrl || null;
   const expiresAt = calculateExpiresAt(record, source, collectedAt);
   const validityStatus = evaluateValidity(
     { expiresAt, collectedAt },
@@ -473,14 +775,17 @@ function normalizeJob(record, source, municipalities, now = new Date()) {
     sourceName: source.name,
     sourceUrl: canonicalSourceUrl,
     normalizedSourceUrl,
-    termsUrl: source.termsUrl,
+    termsUrl,
+    attributionUrl: source.attributionUrl || null,
+    countryEligibility: record.countryEligibility === "Brazil" ? "Brazil" : null,
     sourceRecordId: sourceRecordId || null,
     source: {
       id: source.id,
       name: source.name,
       provider: source.provider || "json-feed",
       url: canonicalSourceUrl,
-      termsUrl: source.termsUrl,
+      termsUrl,
+      attributionUrl: source.attributionUrl || null,
     },
     origin: "automated_source",
     title,
@@ -648,6 +953,51 @@ async function fetchRemoteOkJobs(source, fetchImpl) {
   };
 }
 
+async function readJsonResponse(response, sourceId) {
+  const contentLength = Number(response.headers?.get?.("content-length"));
+  if (Number.isFinite(contentLength) && contentLength > MAX_SOURCE_RESPONSE_BYTES) {
+    throw new Error(`Source ${sourceId} response exceeds the ${MAX_SOURCE_RESPONSE_BYTES}-byte limit.`);
+  }
+
+  let text;
+  if (response.body && typeof response.body.getReader === "function") {
+    const reader = response.body.getReader();
+    const chunks = [];
+    let totalBytes = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > MAX_SOURCE_RESPONSE_BYTES) {
+        await reader.cancel();
+        throw new Error(`Source ${sourceId} response exceeds the ${MAX_SOURCE_RESPONSE_BYTES}-byte limit.`);
+      }
+      chunks.push(Buffer.from(value));
+    }
+    text = Buffer.concat(chunks).toString("utf8");
+  } else if (typeof response.text === "function") {
+    text = await response.text();
+    if (Buffer.byteLength(text, "utf8") > MAX_SOURCE_RESPONSE_BYTES) {
+      throw new Error(`Source ${sourceId} response exceeds the ${MAX_SOURCE_RESPONSE_BYTES}-byte limit.`);
+    }
+  } else if (typeof response.json === "function") {
+    const payload = await response.json();
+    const serialized = JSON.stringify(payload);
+    if (Buffer.byteLength(serialized, "utf8") > MAX_SOURCE_RESPONSE_BYTES) {
+      throw new Error(`Source ${sourceId} response exceeds the ${MAX_SOURCE_RESPONSE_BYTES}-byte limit.`);
+    }
+    return payload;
+  } else {
+    throw new Error(`Source ${sourceId} response body is unreadable.`);
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`Source ${sourceId} response is not valid JSON.`);
+  }
+}
+
 async function fetchSourceJobs(source, fetchImpl, sleepImpl) {
   if (source.provider === "jobicy") {
     return fetchJobicyJobs(source, fetchImpl, sleepImpl);
@@ -655,37 +1005,62 @@ async function fetchSourceJobs(source, fetchImpl, sleepImpl) {
   if (source.provider === "remoteok") {
     return fetchRemoteOkJobs(source, fetchImpl);
   }
-  if (source[APPROVED_GENERIC_SOURCE] !== true || isRemoteOkHost(source.feedUrl)) {
-    throw new Error("Generic source is not registered or targets the disabled Remote OK host.");
+  if (
+    source[APPROVED_GENERIC_SOURCE] !== true
+    || !source.authorized
+    || source.enabled !== true
+    || source.type !== "json"
+    || isBlockedSourceLabel(`${source.id} ${source.name} ${source.provider || ""}`)
+  ) {
+    throw new Error("Generic source is not authorized, enabled, or supported.");
+  }
+  const feedUrl = validatePublicUrl(source.feedUrl, `Source ${source.id} url`);
+  const attributionUrl = validatePublicUrl(source.attributionUrl, `Source ${source.id} attributionUrl`);
+  if (
+    isBlockedSourceHost(feedUrl)
+    || isBlockedSourceHost(attributionUrl)
+    || isBlockedSourceHost(source.termsUrl)
+  ) {
+    throw new Error("Remote OK, Remotive, and SINE sources are blocked from generic-feed requests.");
   }
 
-  const response = await fetchImpl(source.feedUrl, {
+  const response = await fetchImpl(feedUrl, {
     headers: { Accept: "application/json" },
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    signal: AbortSignal.timeout(SOURCE_REQUEST_TIMEOUT_MS),
     redirect: "manual",
   });
   if (response.status >= 300 && response.status < 400) {
     throw new Error("Generic source redirects are not followed.");
   }
-  if (response.url && isRemoteOkHost(response.url)) {
-    throw new Error("Generic source resolved to the disabled Remote OK host.");
+  if (response.url) {
+    const resolvedUrl = validatePublicUrl(response.url, `Source ${source.id} response URL`);
+    const expectedUrl = new URL(feedUrl);
+    const actualUrl = new URL(resolvedUrl);
+    expectedUrl.hash = "";
+    actualUrl.hash = "";
+    if (actualUrl.href !== expectedUrl.href) {
+      throw new Error("Generic source resolved to a different URL; redirects are not followed.");
+    }
   }
   if (!response.ok) throw new Error(`Source returned HTTP ${response.status}.`);
 
-  const payload = await response.json();
+  const payload = await readJsonResponse(response, source.id);
   const records = Array.isArray(payload) ? payload : payload?.jobs;
   if (!Array.isArray(records)) throw new Error("Source response must be a JSON array or contain a jobs array.");
   const payloadItems = Array.isArray(payload) ? payload : [payload];
-  const remoteOkPayload = payloadItems.some((item) => (
-    typeof item?.legal === "string" && isRemoteOkLabel(item.legal)
-  )) || records.some((record) => (
-    record && (
-      [record.provider, record.source, record.sourceName].some(isRemoteOkLabel)
-      || isRemoteOkHost(record.url || record.sourceUrl || record.apply_url)
-    )
-  ));
-  if (remoteOkPayload) throw new Error("Generic feed contains Remote OK records and is rejected.");
-  return { records, availabilityById: new Map(), pages: 1, truncated: false, availabilityError: "" };
+  const blockedPayload = payloadItems.some((item) => (
+    typeof item?.legal === "string" && isBlockedSourceLabel(item.legal)
+  )) || records.some(recordIdentifiesBlockedSource);
+  if (blockedPayload) {
+    throw new Error("Generic feed contains a blocked Remote OK, Remotive, or SINE source and is rejected.");
+  }
+  return {
+    records: records.map((record) => mapConfiguredJsonRecord(record, source)),
+    availabilityById: new Map(),
+    pages: 1,
+    truncated: false,
+    availabilityError: "",
+  };
 }
 
 function addSourceReference(primaryJob, duplicateJob) {
@@ -694,12 +1069,14 @@ function addSourceReference(primaryJob, duplicateJob) {
     sourceName: duplicateJob.sourceName,
     sourceUrl: duplicateJob.sourceUrl,
     termsUrl: duplicateJob.termsUrl,
+    ...(duplicateJob.attributionUrl ? { attributionUrl: duplicateJob.attributionUrl } : {}),
   };
   const references = primaryJob.sourceReferences || [{
     sourceId: primaryJob.sourceId,
     sourceName: primaryJob.sourceName,
     sourceUrl: primaryJob.sourceUrl,
     termsUrl: primaryJob.termsUrl,
+    ...(primaryJob.attributionUrl ? { attributionUrl: primaryJob.attributionUrl } : {}),
   }];
   if (!references.some((reference) => (
     reference.sourceId === sourceReference.sourceId
@@ -956,11 +1333,69 @@ async function persistJobsWithRepository(jobs, repository, {
   };
 }
 
+function summarizeGeographicJob(job) {
+  return {
+    title: job.title,
+    companyName: job.companyName,
+    city: job.city,
+    locationLabel: job.locationLabel,
+    ibgeCode: job.ibgeCode,
+    locationScope: job.locationScope,
+    modality: job.modality,
+    sourceId: job.sourceId,
+    sourceName: job.sourceName,
+    sourceUrl: job.sourceUrl,
+    attributionUrl: job.attributionUrl || job.termsUrl,
+    validityStatus: job.validityStatus,
+  };
+}
+
+function geographicGroup(jobs) {
+  const orderedJobs = [...jobs].sort((left, right) => (
+    String(left.city || left.locationLabel || "").localeCompare(
+      String(right.city || right.locationLabel || ""),
+      "pt-BR",
+    ) || String(left.title).localeCompare(String(right.title), "pt-BR")
+  ));
+  return {
+    count: orderedJobs.length,
+    jobs: orderedJobs.slice(0, MAX_GEOGRAPHIC_SUMMARY_JOBS).map(summarizeGeographicJob),
+    truncated: orderedJobs.length > MAX_GEOGRAPHIC_SUMMARY_JOBS,
+  };
+}
+
+function buildGeographicSummary(jobs) {
+  const extremoSulBahia = [];
+  const outrosMunicipiosBahia = [];
+  const remotoBrasil = [];
+  const semLocalConfirmado = [];
+
+  for (const job of jobs) {
+    if (job.locationScope === "municipality" && job.region === "extremo_sul_ba") {
+      extremoSulBahia.push(job);
+    } else if (job.locationScope === "municipality" && /^\d{7}$/.test(String(job.ibgeCode || ""))) {
+      outrosMunicipiosBahia.push(job);
+    } else if (job.locationScope === "remote" && job.countryEligibility === "Brazil") {
+      remotoBrasil.push(job);
+    } else {
+      semLocalConfirmado.push(job);
+    }
+  }
+
+  return {
+    extremoSulBahia: geographicGroup(extremoSulBahia),
+    outrosMunicipiosBahia: geographicGroup(outrosMunicipiosBahia),
+    remotoBrasil: geographicGroup(remotoBrasil),
+    semLocalConfirmado: geographicGroup(semLocalConfirmado),
+  };
+}
+
 async function runJobSearch({
   sources = [],
   fetchImpl = fetch,
   sleepImpl = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
   now = new Date(),
+  sourceWarnings = [],
 } = {}) {
   const report = {
     startedAt: now.toISOString(),
@@ -983,6 +1418,8 @@ async function runJobSearch({
     countryRemoteJobs: 0,
     firestoreWrites: 0,
     duplicatesIgnored: 0,
+    warnings: [...sourceWarnings],
+    geographicSummary: buildGeographicSummary([]),
     sourceResults: [],
     errors: [],
   };
@@ -1009,6 +1446,7 @@ async function runJobSearch({
       provider: source.provider || "json-feed",
       endpoint: source.feedUrl,
       termsUrl: source.termsUrl,
+      attributionUrl: source.attributionUrl || source.termsUrl,
     };
 
     if (
@@ -1116,7 +1554,10 @@ async function runJobSearch({
   report.activeValidityJobs = uniqueJobs.filter((job) => job.validityStatus === "active").length;
   report.expiredJobs = uniqueJobs.filter((job) => job.validityStatus === "expired").length;
   report.staleJobs = uniqueJobs.filter((job) => job.validityStatus === "stale").length;
-  report.countryRemoteJobs = uniqueJobs.filter((job) => job.locationScope === "remote").length;
+  report.countryRemoteJobs = uniqueJobs.filter(
+    (job) => job.locationScope === "remote" && job.countryEligibility === "Brazil",
+  ).length;
+  report.geographicSummary = buildGeographicSummary(uniqueJobs);
   report.availableJobs = uniqueJobs.filter((job) => job.availability === "available").length;
   report.unavailableJobs = uniqueJobs.filter((job) => job.availability === "unavailable").length;
   report.unknownAvailabilityJobs = uniqueJobs.filter((job) => job.availability === "unknown").length;
@@ -1222,10 +1663,29 @@ function renderSummary(report) {
     );
   }
 
+  const geographic = report.geographicSummary;
+  lines.push(
+    "### Resumo geográfico",
+    `- Extremo Sul da Bahia: ${geographic.extremoSulBahia.count}`,
+    `- Outros municípios da Bahia: ${geographic.outrosMunicipiosBahia.count}`,
+    `- Remoto elegível no Brasil: ${geographic.remotoBrasil.count}`,
+    `- Sem local confirmado: ${geographic.semLocalConfirmado.count}`,
+    "",
+  );
+
   if (report.sourceResults.length) {
     lines.push("### Fontes consultadas", ...report.sourceResults.map((source) => (
-      `- ${source.sourceName} (${source.status}) — ${source.endpoint}; termos/documentação: ${source.termsUrl}`
+      `- ${source.sourceName} (${source.status}) — ${source.endpoint}; atribuição: ${source.attributionUrl}`
     )), "");
+  }
+  if (report.warnings.length) {
+    lines.push(
+      "### Avisos de configuração",
+      ...report.warnings.map((warning) => (
+        `- ${warning.sourceId ? `${warning.sourceId}: ` : ""}${warning.message}`
+      )),
+      "",
+    );
   }
   if (report.errors.length) {
     lines.push("### Erros", ...report.errors.map((error) => `- ${error.stage}${error.sourceId ? ` (${error.sourceId})` : ""}: ${error.message}`), "");
@@ -1241,12 +1701,18 @@ async function main(argv = process.argv.slice(2)) {
   const persist = argv.includes("--persist");
   const outputIndex = argv.indexOf("--output");
   const outputPath = outputIndex >= 0 ? argv[outputIndex + 1] : "";
+  const sourceWarnings = [];
+  const configuredSources = parseSources(
+    process.env.JOB_SEARCH_SOURCES_JSON || "[]",
+    AUTHORIZED_GENERIC_FEEDS,
+    sourceWarnings,
+  );
   const sources = [
     JOBICY_BRAZIL_SOURCE,
     REMOTE_OK_SOURCE,
-    ...parseSources(process.env.JOB_SEARCH_SOURCES_JSON || "[]"),
+    ...configuredSources,
   ];
-  const { report, jobs } = await runJobSearch({ sources });
+  const { report, jobs } = await runJobSearch({ sources, sourceWarnings });
 
   if (persist) {
     try {
@@ -1292,9 +1758,13 @@ module.exports = {
   MAX_PERSIST_LEADS_PER_RUN,
   RECONCILE_BATCH_SIZE,
   MAX_RECONCILE_BATCHES,
+  SOURCE_REQUEST_TIMEOUT_MS,
+  MAX_SOURCE_RESPONSE_BYTES,
+  MAX_GEOGRAPHIC_SUMMARY_JOBS,
   EXTREMO_SUL_MUNICIPALITY_NAMES,
   buildAutomatedJobLeadPayload,
   buildExpiredLeadPatch,
+  buildGeographicSummary,
   buildLeadPersistencePlan,
   calculateExpiresAt,
   createFirestoreLeadRepository,
@@ -1305,6 +1775,7 @@ module.exports = {
   addRemoteOkSourceReference,
   addSourceReference,
   mapRemoteOkRecord,
+  mapConfiguredJsonRecord,
   mapJobicyRecord,
   normalizeUrlForDedup,
   normalizeJob,
@@ -1314,4 +1785,5 @@ module.exports = {
   reconcileExpiredPendingLeads,
   runJobSearch,
   validateMunicipalities,
+  validatePublicUrl,
 };

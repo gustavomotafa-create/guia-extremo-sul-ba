@@ -117,22 +117,33 @@ O workflow `.github/workflows/daily-job-search.yml` executa diariamente as 06:13
 
 A fonte integrada por padrao e a API publica do Jobicy, filtrada por vagas remotas elegiveis no Brasil. Ela nao fornece filtro por municipio e nao substitui uma fonte local para os 417 municipios. A API publica e gratuita, mas exige atribuicao visivel ao Jobicy e a manutencao do link original da vaga. O coletor usa o link de listagem do Jobicy e nao solicita links diretos de candidatura que podem ter cobranca. A API tem janela de sete dias, atraso de tres horas, paginacao sequencial, consulta de status e limite de uma requisicao por segundo; a execucao respeita esse intervalo e e agendada fora do minuto zero.
 
-Para fontes adicionais previamente aprovadas, configure `JOB_SEARCH_SOURCES_JSON` como um array JSON. Cada `id` e URL exata do feed tambem precisa estar registrada na allowlist versionada em `functions/job-bot.js`; apenas definir `authorized` e `termsReviewed` nao habilita uma fonte. Um exemplo da estrutura esperada:
+Para fontes adicionais com permissao de uso e atribuicao previamente verificadas, configure `JOB_SEARCH_SOURCES_JSON` como um array JSON. Cada fonte precisa declarar `id`, `name`, `url`, `type: "json"`, `enabled: true`, `authorized: true` e `attributionUrl`; fontes sem autorizacao explicita ou desabilitadas sao ignoradas e registradas em `report.warnings`. A configuracao e uma declaracao do mantenedor, nao uma verificacao automatica de licenca: confirme os termos da fonte antes de habilita-la. Exemplo:
 
 ```json
 [
   {
     "id": "identificador-estavel",
     "name": "Nome da fonte",
-    "feedUrl": "https://exemplo.gov.br/api/vagas",
-    "termsUrl": "https://exemplo.gov.br/termos",
+    "url": "https://exemplo.gov.br/api/vagas",
+    "type": "json",
+    "enabled": true,
     "authorized": true,
-    "termsReviewed": true
+    "attributionUrl": "https://exemplo.gov.br/termos-de-uso",
+    "termsUrl": "https://exemplo.gov.br/termos",
+    "fieldMapping": {
+      "title": "vaga.cargo",
+      "company": "empresa.nome",
+      "location": "vaga.localizacao",
+      "modality": "vaga.modalidade",
+      "url": "vaga.link",
+      "publishedAt": "vaga.publicadaEm",
+      "validThrough": "vaga.validaAte"
+    }
   }
 ]
 ```
 
-O feed deve ser uma API documentada e autorizada, sem autenticacao, e retornar um array JSON ou `{ "jobs": [...] }`. Cada registro precisa fornecer `title`, `city` (nome de um dos municipios da Bahia) e `url` HTTPS identificavel; `id`/`externalId`, `company`/`companyName`, `description`, `salary`, `contract`, `modality`, `publishedAt`, `validThrough`, `available`, `ttlDays` e `staleAfterDays` sao opcionais e nunca sao inventados. Sem validade explicita, o TTL e de 30 dias a partir da publicacao ou da coleta; `ttlDays` pode ser configurado por fonte. O ciclo de vida usa `validityStatus` (`active`, `expired` ou `stale`), com janela de desatualizacao padrao de 7 dias. `authorized` e `termsReviewed` sao declaracoes de configuracao, nao substituem a allowlist de codigo. Feeds sem registro explicito, com URL Remote OK, ou que redirecionem sao rejeitados; URLs de vaga que apontem ao Remote OK tambem sao recusadas. A allowlist atual nao inclui fontes genericas. Feeds HTML, scraping de sites, fontes pagas/autenticadas e fontes sem termos verificados nao sao suportados. A pesquisa, as fontes avaliadas e as limitacoes estao em [`docs/job-source-audit.md`](docs/job-source-audit.md).
+O feed deve ser uma API JSON publica, sem autenticacao, e retornar um array ou `{ "jobs": [...] }`. `fieldMapping` aceita caminhos pontuados para os campos indicados; sem mapeamento, o coletor reconhece nomes canonicos comuns (`title`, `city`/`location`, `url`, `company`/`companyName`, entre outros). Apenas URLs HTTPS publicas sao permitidas: hosts locais, `.local`, faixas IPv4/IPv6 privadas e credenciais embutidas sao rejeitados antes da requisicao. Redirecionamentos nao sao seguidos; a consulta tem timeout de 8 segundos e o corpo JSON e limitado a 2 MiB. Remote OK, Remotive e SINE continuam bloqueados, inclusive quando identificados por host, nome ou metadados do registro. Cada vaga passa pela mesma normalizacao IBGE, validade, deduplicacao e preparacao de lead. Sem validade explicita, o TTL padrao e 30 dias; a janela stale e 7 dias. O relatorio inclui avisos de configuracao e grupos geograficos com contagens, lista resumida e indicador de truncamento. Feeds HTML, fontes pagas/autenticadas e fontes sem permissao de redistribuicao confirmada nao devem ser configurados. Consulte [`docs/job-source-audit.md`](docs/job-source-audit.md) para fontes avaliadas e limitacoes.
 
 O adaptador Jobicy mapeia cargo, empresa, elegibilidade geografica, descricao, tipo, nivel, categoria, salario, data e URL de origem. Como a localizacao e elegibilidade remota por pais, esses resultados ficam marcados como `locationScope: "remote"`, sem cidade ou municipio inventado. O coletor classifica localidades exatas com o codigo IBGE; Posto da Mata e Itabatã sao associados, respectivamente, a Nova Viçosa e Mucuri, sem criarem municipios novos. As demais classificacoes incluem `municipality`, `regional_extremo_sul`, `statewide_ba` e `unverified`. A disponibilidade da fonte e separada da validade calculada: vencimentos explicitos sao respeitados e, sem validade, aplica-se o TTL configurado ou padrao de 30 dias. `collectedAt` e `fetchedAt` registram a coleta, e o relatorio conta vagas ativas, expiradas e desatualizadas. O endpoint oficial de status marca a vaga como disponivel, indisponivel ou desconhecida; vagas fora da janela de sete dias nao sao automaticamente consideradas encerradas. A deduplicacao combina fonte, identificador/URL canonica e titulo/empresa normalizados, preservando referencias de origem em duplicatas entre fontes. A paginacao e limitada a 10 paginas (1.000 vagas); se houver mais resultados, o relatorio assinala a coleta parcial. Nenhum resultado e enviado para `jobs`.
 

@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const {
   DEFAULT_JOB_TTL_DAYS,
   DEFAULT_STALE_AFTER_DAYS,
+  MAX_SOURCE_RESPONSE_BYTES,
   EXTREMO_SUL_MUNICIPALITY_NAMES,
   EXPECTED_MUNICIPALITY_COUNT,
   JOBICY_BRAZIL_SOURCE,
@@ -60,10 +61,13 @@ function municipalityListWithExtremoSul() {
 const source = {
   id: "approved-feed",
   name: "Fonte autorizada",
+  type: "json",
+  enabled: true,
   feedUrl: "https://jobs.example.test/feed.json",
+  url: "https://jobs.example.test/feed.json",
   termsUrl: "https://jobs.example.test/terms",
+  attributionUrl: "https://jobs.example.test/attribution",
   authorized: true,
-  termsReviewed: true,
 };
 
 function response(payload, status = 200) {
@@ -161,50 +165,151 @@ test("fetches and validates the official IBGE municipality response", async () =
   assert.equal(result.length, 417);
 });
 
-test("parses only public HTTPS sources and requires reviewed authorization", () => {
-  const approvedFeeds = new Map([
-    [source.id, source.feedUrl],
-    ["unreviewed", source.feedUrl],
-  ]);
+test("requires explicit authorization, attribution, JSON type, and safe HTTPS hosts for configured sources", () => {
+  const warnings = [];
   const parsed = parseSources(JSON.stringify([
-    { ...source, authorized: true, termsReviewed: true },
-    { ...source, id: "unreviewed", authorized: true, termsReviewed: false },
-  ]), approvedFeeds);
+    source,
+    { ...source, id: "unauthorized", authorized: false },
+    { ...source, id: "disabled", enabled: false },
+  ]), new Map(), warnings);
+  assert.equal(parsed.length, 1);
   assert.equal(parsed[0].authorized, true);
-  assert.equal(parsed[1].authorized, false);
-  assert.throws(
-    () => parseSources(JSON.stringify([source])),
-    /not registered in the code-reviewed generic feed allowlist/,
+  assert.equal(parsed[0].type, "json");
+  assert.equal(parsed[0].attributionUrl, source.attributionUrl);
+  assert.equal(warnings.length, 2);
+  assert.match(warnings[0].message, /lacks explicit authorization/);
+  assert.match(warnings[1].message, /not explicitly enabled/);
+
+  const rejectedWarnings = [];
+  const invalidSources = [
+    { ...source, id: "http-feed", url: "http://jobs.example.test/feed.json" },
+    { ...source, id: "localhost", url: "https://localhost/feed.json" },
+    { ...source, id: "loopback", url: "https://127.0.0.1/feed.json" },
+    { ...source, id: "private-v4", url: "https://10.2.3.4/feed.json" },
+    { ...source, id: "private-v4-172", url: "https://172.16.0.4/feed.json" },
+    { ...source, id: "private-v4-192", url: "https://192.168.1.4/feed.json" },
+    { ...source, id: "loopback-v6", url: "https://[::1]/feed.json" },
+    { ...source, id: "private-v6", url: "https://[fd00::1]/feed.json" },
+    { ...source, id: "local-domain", url: "https://feed.internal.local/jobs.json" },
+    { ...source, id: "private-attribution", attributionUrl: "https://192.168.1.9/license" },
+  ];
+  assert.deepEqual(
+    parseSources(JSON.stringify(invalidSources), new Map(), rejectedWarnings),
+    [],
   );
-  assert.throws(
-    () => parseSources(JSON.stringify([{ ...source, feedUrl: "https://example.test/?api_key=secret" }])),
-    /without embedded credentials/,
+  assert.equal(rejectedWarnings.length, invalidSources.length);
+  assert.ok(rejectedWarnings.every((warning) => /ignored/.test(warning.message)));
+
+  assert.deepEqual(
+    parseSources(JSON.stringify([{ ...source, authorized: undefined }]), new Map()),
+    [],
   );
+  assert.deepEqual(
+    parseSources(JSON.stringify([{ ...source, attributionUrl: undefined }]), new Map()),
+    [],
+  );
+  assert.deepEqual(
+    parseSources(JSON.stringify([{ ...source, type: "html" }]), new Map()),
+    [],
+  );
+
   assert.throws(
     () => parseSources(JSON.stringify([{
       ...source,
-      feedUrl: REMOTE_OK_API_URL,
-      termsUrl: REMOTE_OK_API_URL,
-      authorized: true,
-      termsReviewed: true,
+      url: REMOTE_OK_API_URL,
+      attributionUrl: REMOTE_OK_API_URL,
     }])),
-    /Remote OK is disabled/,
+    /Remote OK, Remotive, and SINE sources are blocked/,
   );
   assert.throws(
     () => parseSources(JSON.stringify([{
       ...source,
       id: "remoteok-proxy",
-      feedUrl: "https://proxy.example.test/feed.json",
-    }]), new Map([["remoteok-proxy", "https://proxy.example.test/feed.json"]])),
-    /Remote OK is disabled/,
+      url: "https://proxy.example.test/feed.json",
+    }])),
+    /Remote OK, Remotive, and SINE sources are blocked/,
   );
   assert.throws(
-    () => parseSources(JSON.stringify([{
-      ...source,
-      feedUrl: "https://api.remoteok.com/feed.json",
-    }])),
-    /Remote OK is disabled/,
+    () => parseSources(JSON.stringify([{ ...source, url: "https://api.remoteok.com/feed.json" }])),
+    /Remote OK, Remotive, and SINE sources are blocked/,
   );
+  assert.throws(
+    () => parseSources(JSON.stringify([{ ...source, url: "https://api.remotive.com/feed.json" }])),
+    /Remote OK, Remotive, and SINE sources are blocked/,
+  );
+  assert.throws(
+    () => parseSources(JSON.stringify([{ ...source, id: "sinebahia-jobs" }])),
+    /Remote OK, Remotive, and SINE sources are blocked/,
+  );
+});
+
+test("records configuration warnings for sources that are disabled or lack authorization", async () => {
+  const warnings = [];
+  const sources = parseSources(JSON.stringify([
+    { ...source, id: "unapproved", authorized: false },
+    { ...source, id: "disabled", enabled: false },
+  ]), new Map(), warnings);
+  const { report } = await runJobSearch({
+    sources,
+    sourceWarnings: warnings,
+    fetchImpl: async () => response(municipalityListWithExtremoSul()),
+  });
+
+  assert.equal(report.warnings.length, 2);
+  assert.equal(report.sourceResults.length, 0);
+  assert.equal(report.sourcesAttempted, 0);
+  assert.match(report.warnings[0].message, /lacks explicit authorization/);
+  assert.match(report.warnings[1].message, /not explicitly enabled/);
+});
+
+test("enforces the JSON response-size limit while streaming configured feeds", async () => {
+  const configuredSource = registeredTestSource();
+  const requests = [];
+  const { report } = await runJobSearch({
+    sources: [configuredSource],
+    fetchImpl: async (url, options) => {
+      requests.push({ url: String(url), options });
+      if (String(url).includes("servicodados.ibge.gov.br")) {
+        return response(municipalityListWithExtremoSul());
+      }
+      const body = new ReadableStream({
+        start(controller) {
+          controller.enqueue(new Uint8Array(MAX_SOURCE_RESPONSE_BYTES + 1));
+          controller.close();
+        },
+      });
+      return {
+        ok: true,
+        status: 200,
+        url: configuredSource.feedUrl,
+        headers: { get: () => null },
+        body,
+      };
+    },
+  });
+
+  assert.equal(report.sourceResults[0].status, "error");
+  assert.match(report.errors[0].message, /2MiB|2097152-byte limit/);
+  assert.equal(requests[1].options.redirect, "manual");
+  assert.ok(requests[1].options.signal instanceof AbortSignal);
+});
+
+test("revalidates a configured source URL immediately before making its request", async () => {
+  const configuredSource = registeredTestSource();
+  configuredSource.feedUrl = "https://127.0.0.1/private.json";
+  const requests = [];
+  const { report } = await runJobSearch({
+    sources: [configuredSource],
+    fetchImpl: async (url) => {
+      requests.push(String(url));
+      return response(municipalityListWithExtremoSul());
+    },
+  });
+
+  assert.equal(requests.length, 1);
+  assert.match(requests[0], /servicodados\.ibge\.gov\.br/);
+  assert.equal(report.sourceResults[0].status, "error");
+  assert.match(report.errors[0].message, /public HTTPS URL/);
 });
 
 test("normalizes real source details without inventing fields and marks unknown availability", () => {
@@ -511,6 +616,190 @@ test("generic feeds do not follow redirects or ingest Remote OK proxy records", 
   });
   assert.equal(remoteOkMarker.report.jobsNormalized, 0);
   assert.equal(remoteOkMarker.report.sourceResults[0].status, "error");
+
+  for (const blockedSourceName of ["Remotive", "SINE Bahia"]) {
+    const blockedFeed = await runJobSearch({
+      sources: [registeredTestSource()],
+      fetchImpl: async (url) => {
+        if (String(url).includes("servicodados.ibge.gov.br")) return response(municipalities);
+        return response({
+          jobs: [{
+            title: "Atendente",
+            company: "Empresa",
+            city: "Teixeira de Freitas",
+            url: "https://jobs.example.test/blocked",
+            sourceName: blockedSourceName,
+          }],
+        });
+      },
+    });
+    assert.equal(blockedFeed.report.jobsNormalized, 0);
+    assert.equal(blockedFeed.report.sourceResults[0].status, "error");
+  }
+});
+
+test("maps authorized JSON fields, classifies an Extremo Sul municipality, and deduplicates Jobicy", async () => {
+  const fieldMapping = {
+    id: "posting.code",
+    title: "posting.role",
+    company: "employer.name",
+    location: "workplace",
+    modality: "workMode",
+    url: "links.public",
+    publishedAt: "dates.published",
+    validThrough: "dates.expires",
+    description: "summary",
+    country: "country",
+  };
+  const configuredSource = registeredTestSource({ fieldMapping });
+  const jobicyRecord = {
+    id: 777,
+    jobTitle: "Pessoa desenvolvedora",
+    companyName: "Empresa Remota",
+    url: "https://jobicy.com/jobs/777",
+    jobGeo: "Brazil",
+    jobExcerpt: "Experiencia com desenvolvimento de software.",
+    pubDate: "2026-01-09T12:00:00.000Z",
+  };
+  const configuredRecords = [
+    {
+      posting: { code: "local-1", role: "Analista local" },
+      employer: { name: "Empresa Extremo Sul" },
+      workplace: "Teixeira de Freitas",
+      workMode: "Presencial",
+      links: { public: "https://jobs.example.test/vagas/local-1" },
+      dates: {
+        published: "2026-01-09T12:00:00.000Z",
+        expires: "2026-02-01T00:00:00.000Z",
+      },
+      summary: "Atividades administrativas.",
+      country: "Brazil",
+    },
+    {
+      posting: { code: "remote-duplicate", role: "Pessoa desenvolvedora" },
+      employer: { name: "Empresa Remota" },
+      workplace: "Brazil",
+      workMode: "Remoto",
+      links: { public: "https://jobs.example.test/vagas/remote-duplicate" },
+      dates: {
+        published: "2026-01-09T12:00:00.000Z",
+        expires: "2026-02-01T00:00:00.000Z",
+      },
+      summary: "Experiencia com desenvolvimento de software.",
+      country: "Brazil",
+    },
+  ];
+
+  const { report, jobs } = await runJobSearch({
+    sources: [JOBICY_BRAZIL_SOURCE, configuredSource],
+    sleepImpl: async () => {},
+    now: new Date("2026-01-10T00:00:00.000Z"),
+    fetchImpl: async (url) => {
+      const requestUrl = new URL(url);
+      if (requestUrl.hostname === "servicodados.ibge.gov.br") {
+        return response(municipalityListWithExtremoSul());
+      }
+      if (requestUrl.hostname === "jobicy.com") {
+        if (requestUrl.pathname.endsWith("/status")) {
+          return response({ jobs: [{ id: 777, status: "active" }] });
+        }
+        return response({ jobs: [jobicyRecord], hasMore: false, nextCursor: null });
+      }
+      return response({ jobs: configuredRecords });
+    },
+  });
+
+  const localJob = jobs.find((job) => job.title === "Analista local");
+  const primaryRemoteJob = jobs.find((job) => job.sourceId === JOBICY_BRAZIL_SOURCE.id);
+  assert.equal(report.jobsNormalized, 2);
+  assert.equal(report.duplicateJobs, 1);
+  assert.equal(report.sourceResults[1].duplicates, 1);
+  assert.equal(localJob.city, "Teixeira de Freitas");
+  assert.equal(localJob.locationScope, "municipality");
+  assert.equal(localJob.region, "extremo_sul_ba");
+  assert.equal(localJob.ibgeCode, "2900011");
+  assert.equal(localJob.publishedAt, "2026-01-09T12:00:00.000Z");
+  assert.equal(localJob.expiresAt, "2026-02-01T00:00:00.000Z");
+  const configuredReference = primaryRemoteJob.sourceReferences.find(
+    (reference) => reference.sourceId === configuredSource.id,
+  );
+  assert.ok(configuredReference);
+  assert.equal(configuredReference.attributionUrl, configuredSource.attributionUrl);
+});
+
+test("reports geographic groups in priority order with counts and summarized job lists", async () => {
+  const records = [
+    {
+      id: "extremo-1",
+      title: "Vaga Extremo Sul",
+      company: "Empresa A",
+      city: "Teixeira de Freitas",
+      url: "https://jobs.example.test/vagas/extremo-1",
+    },
+    {
+      id: "municipality-1",
+      title: "Vaga Outro Municipio",
+      company: "Empresa B",
+      city: "Município 20",
+      url: "https://jobs.example.test/vagas/municipality-1",
+    },
+    {
+      id: "remote-1",
+      title: "Vaga Remota Brasil",
+      company: "Empresa C",
+      city: "Brazil",
+      countryEligibility: "Brazil",
+      modality: "Remoto",
+      url: "https://jobs.example.test/vagas/remote-1",
+    },
+    {
+      id: "unverified-1",
+      title: "Vaga Sem Local Confirmado",
+      company: "Empresa D",
+      city: "Local não reconhecido",
+      url: "https://jobs.example.test/vagas/unverified-1",
+    },
+    {
+      id: "remote-foreign",
+      title: "Remota sem elegibilidade brasileira",
+      company: "Empresa E",
+      city: "Worldwide",
+      country: "United States",
+      modality: "Remoto",
+      url: "https://jobs.example.test/vagas/remote-foreign",
+    },
+  ];
+  const { report } = await runJobSearch({
+    sources: [registeredTestSource()],
+    now: new Date("2026-01-10T00:00:00.000Z"),
+    fetchImpl: async (url) => (
+      String(url).includes("servicodados.ibge.gov.br")
+        ? response(municipalityListWithExtremoSul())
+        : response({ jobs: records })
+    ),
+  });
+  const summary = report.geographicSummary;
+
+  assert.deepEqual(Object.keys(summary), [
+    "extremoSulBahia",
+    "outrosMunicipiosBahia",
+    "remotoBrasil",
+    "semLocalConfirmado",
+  ]);
+  assert.equal(summary.extremoSulBahia.count, 1);
+  assert.equal(summary.extremoSulBahia.jobs[0].city, "Teixeira de Freitas");
+  assert.equal(summary.outrosMunicipiosBahia.count, 1);
+  assert.equal(summary.outrosMunicipiosBahia.jobs[0].city, "Município 20");
+  assert.equal(summary.remotoBrasil.count, 1);
+  assert.equal(summary.remotoBrasil.jobs[0].title, "Vaga Remota Brasil");
+  assert.equal(summary.remotoBrasil.jobs[0].locationScope, "remote");
+  assert.equal(summary.semLocalConfirmado.count, 2);
+  assert.equal(summary.semLocalConfirmado.jobs.some(
+    (job) => job.title === "Vaga Sem Local Confirmado",
+  ), true);
+  assert.equal(summary.semLocalConfirmado.jobs.some(
+    (job) => job.title === "Remota sem elegibilidade brasileira",
+  ), true);
 });
 
 test("maps Jobicy country-eligible remote listings without assigning a Bahia municipality", () => {
