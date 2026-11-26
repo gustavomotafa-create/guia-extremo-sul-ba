@@ -10,6 +10,16 @@ const FREE_DAILY_LIMIT = 2;
 const EXTRA_PACK_SIZE = 2;
 const EXTRA_PACK_PRICE = 5;
 const ADMIN_EMAILS = ["sunflowercollectivegf@gmail.com"];
+const AUTOMATED_LEAD_PENDING_STATUSES = new Set([
+  "",
+  "new",
+  "pending",
+  "pending_review",
+  "pending-review",
+  "lead_pending_review",
+  "aguardando_revisao",
+  "aguardando revisao",
+]);
 
 const mercadoPagoAccessToken = defineSecret("MERCADO_PAGO_ACCESS_TOKEN");
 const publicSiteUrl = defineString("PUBLIC_SITE_URL", {
@@ -63,6 +73,219 @@ async function assertPublisher(auth) {
   const role = profile.exists ? profile.data().role : null;
 
   return { uid: auth.uid, role, email: auth.token.email || "" };
+}
+
+async function assertAdminUser(auth) {
+  if (!auth) {
+    throw new HttpsError("unauthenticated", "Entre para revisar oportunidades.");
+  }
+  if (isAdminAuth(auth)) return { uid: auth.uid, email: auth.token.email || "" };
+
+  const profile = await db.collection("users").doc(auth.uid).get();
+  if (profile.exists && profile.data().role === "admin") {
+    return { uid: auth.uid, email: auth.token.email || "" };
+  }
+  throw new HttpsError("permission-denied", "Somente administradores podem revisar oportunidades.");
+}
+
+function automatedLeadReviewState(lead) {
+  const statuses = ["reviewStatus", "triageStatus", "status"]
+    .map((field) => cleanString(lead[field]).toLowerCase().replace(/\s+/g, "_"))
+    .filter(Boolean);
+  const hasApproved = statuses.some((status) => ["approved", "aprovada", "aprovado"].includes(status));
+  const hasRejected = statuses.some((status) => ["rejected", "rejeitada", "rejeitado"].includes(status));
+  if (hasApproved && hasRejected) return "conflict";
+  if (hasApproved) return "approved";
+  if (hasRejected) return "rejected";
+  return statuses.every((status) => AUTOMATED_LEAD_PENDING_STATUSES.has(status))
+    ? "pending"
+    : "other";
+}
+
+function reviewDraftValue(edits, previousDraft, lead, field, fallback = "") {
+  if (Object.hasOwn(edits, field)) return edits[field];
+  if (Object.hasOwn(previousDraft, field)) return previousDraft[field];
+  return lead[field] ?? fallback;
+}
+
+function buildAutomatedLeadReviewDraft(lead, edits = {}, previousDraft = {}) {
+  const stringField = (field, fallback = "", maxLength = 4000) => (
+    cleanString(reviewDraftValue(edits, previousDraft, lead, field, fallback)).slice(0, maxLength)
+  );
+  const benefitsValue = reviewDraftValue(edits, previousDraft, lead, "benefits", []);
+  const benefits = Array.isArray(benefitsValue)
+    ? benefitsValue.map((item) => cleanString(item).slice(0, 300)).filter(Boolean).slice(0, 12)
+    : cleanString(benefitsValue).split(",").map((item) => item.trim().slice(0, 300)).filter(Boolean).slice(0, 12);
+
+  return {
+    companyName: stringField("companyName", "", 180),
+    title: stringField("title", "", 180),
+    city: stringField("city", lead.city || lead.locationLabel || "", 120),
+    category: stringField("category", "Serviços Gerais", 120),
+    salaryLabel: stringField("salaryLabel", lead.salary ?? "A combinar", 120),
+    contract: stringField("contract", "", 80),
+    modality: stringField("modality", "", 80),
+    level: stringField("level", "Júnior", 80),
+    whatsapp: cleanWhatsapp(reviewDraftValue(edits, previousDraft, lead, "whatsapp", "")).slice(0, 20),
+    description: stringField("description", "", 4000),
+    requirements: stringField("requirements", "", 4000),
+    benefits,
+    logoUrl: stringField("logoUrl", "", 1000),
+  };
+}
+
+function verifiedHttpsUrl(value, label, { required = false } = {}) {
+  const rawUrl = cleanString(value);
+  if (!rawUrl && !required) return null;
+  try {
+    const url = new URL(rawUrl);
+    if (url.protocol !== "https:" || url.username || url.password) throw new Error("invalid");
+    return url.href;
+  } catch {
+    throw new HttpsError("failed-precondition", `${label} precisa ser uma URL HTTPS válida.`);
+  }
+}
+
+function timestampDate(value) {
+  if (value && typeof value.toDate === "function") return value.toDate();
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function buildAutomatedPublishedJob(lead, leadId, adminUser, draft) {
+  const requiredFields = [
+    draft.companyName,
+    draft.title,
+    draft.city,
+    draft.contract,
+    draft.modality,
+    draft.whatsapp,
+    draft.description,
+    draft.requirements,
+  ];
+  if (requiredFields.some((value) => !value)) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Complete empresa, cargo, município/local, contrato, modalidade, WhatsApp, descrição e requisitos antes de aprovar.",
+    );
+  }
+
+  if (lead.validityStatus === "expired" || lead.availability === "unavailable") {
+    throw new HttpsError("failed-precondition", "Esta oportunidade está marcada como expirada ou indisponível.");
+  }
+  const expiresAt = lead.expiresAt || lead.validThrough || null;
+  const expiryDate = timestampDate(expiresAt);
+  if (!expiryDate || expiryDate.getTime() <= Date.now()) {
+    throw new HttpsError("failed-precondition", "A validade da oportunidade expirou ou não foi informada.");
+  }
+
+  const sourceData = lead.source && typeof lead.source === "object" ? lead.source : {};
+  const sourceId = cleanString(lead.sourceId || sourceData.id).slice(0, 120);
+  const sourceName = cleanString(lead.sourceName || sourceData.name).slice(0, 240);
+  const sourceUrl = verifiedHttpsUrl(lead.sourceUrl || sourceData.url, "Link da vaga na fonte", { required: true });
+  if (!sourceId || !sourceName) {
+    throw new HttpsError("failed-precondition", "A oportunidade precisa ter uma fonte identificável.");
+  }
+  const sourceAttributionUrl = verifiedHttpsUrl(
+    lead.attributionUrl || sourceData.attributionUrl,
+    "Link de atribuição da fonte",
+  );
+  const sourceTermsUrl = verifiedHttpsUrl(
+    lead.termsUrl || sourceData.termsUrl,
+    "Link dos termos da fonte",
+  );
+  const sourceReferences = Array.isArray(lead.sourceReferences)
+    ? lead.sourceReferences.slice(0, 20).map((reference) => ({
+      sourceId: cleanString(reference?.sourceId).slice(0, 120),
+      sourceName: cleanString(reference?.sourceName).slice(0, 240),
+      sourceUrl: verifiedHttpsUrl(reference?.sourceUrl, "Link de vaga referenciada", { required: true }),
+      termsUrl: verifiedHttpsUrl(reference?.termsUrl, "Link dos termos referenciados"),
+      attributionUrl: verifiedHttpsUrl(reference?.attributionUrl, "Link de atribuição referenciado"),
+    }))
+    : [];
+  const source = {
+    id: sourceId,
+    name: sourceName,
+    provider: cleanString(sourceData.provider || "json-feed").slice(0, 80),
+    url: sourceUrl,
+    termsUrl: sourceTermsUrl,
+    attributionUrl: sourceAttributionUrl,
+  };
+  const originalCity = cleanString(lead.city || lead.locationLabel);
+  const sameMunicipality = normalizeCityKey(draft.city) === normalizeCityKey(originalCity);
+  const locationMetadata = sameMunicipality
+    ? {
+      ibgeCode: lead.ibgeCode || lead.municipalityId || null,
+      municipalityId: lead.municipalityId || lead.ibgeCode || null,
+      region: lead.region || null,
+      locationScope: lead.locationScope || "unverified",
+      locationLabel: lead.locationLabel || draft.city,
+      locality: lead.locality || null,
+      sourceLocation: lead.sourceLocation || null,
+    }
+    : {
+      ibgeCode: null,
+      municipalityId: null,
+      region: null,
+      locationScope: "unverified",
+      locationLabel: draft.city,
+      locality: null,
+      sourceLocation: draft.city,
+    };
+
+  return {
+    automatedLeadId: leadId,
+    companyId: adminUser.uid,
+    companyOwnerUid: adminUser.uid,
+    companyName: draft.companyName,
+    title: draft.title,
+    city: draft.city,
+    state: "BA",
+    ...locationMetadata,
+    category: draft.category || "Serviços Gerais",
+    contract: draft.contract,
+    modality: draft.modality,
+    level: draft.level || "Júnior",
+    salary: parseSalary(draft.salaryLabel),
+    salaryLabel: draft.salaryLabel || "A combinar",
+    whatsapp: draft.whatsapp,
+    description: draft.description,
+    requirements: draft.requirements,
+    benefits: draft.benefits,
+    logoUrl: draft.logoUrl,
+    tags: [draft.modality, draft.contract].filter(Boolean),
+    status: "aprovada",
+    paymentStatus: "gratis",
+    quotaType: "automated",
+    origin: "automated_source",
+    source,
+    sourceId,
+    sourceName,
+    sourceUrl,
+    sourceAttributionUrl,
+    sourceTermsUrl,
+    sourceReferences,
+    sourcePublishedAt: lead.publishedAt || null,
+    collectedAt: lead.collectedAt || null,
+    fetchedAt: lead.fetchedAt || null,
+    expiresAt,
+    validThrough: expiresAt,
+    validityStatus: lead.validityStatus || "active",
+    availability: lead.availability || "unknown",
+    dateKey: todayInBahia(),
+    publishedAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+}
+
+function normalizeCityKey(value) {
+  return cleanString(value)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 async function assertJobOwnerOrAdmin(auth, jobId) {
@@ -324,6 +547,136 @@ exports.createJobDraft = onCall({ region: REGION, secrets: [mercadoPagoAccessTok
   }
 
   return result;
+});
+
+exports.reviewAutomatedJobLead = onCall({ region: REGION }, async (request) => {
+  const adminUser = await assertAdminUser(request.auth);
+  const requestData = request.data || {};
+  const leadId = cleanString(requestData.leadId).toLowerCase();
+  const action = cleanString(requestData.action);
+  if (!/^[a-f0-9]{64}$/.test(leadId)) {
+    throw new HttpsError("invalid-argument", "Identificador do lead inválido.");
+  }
+  if (!["save", "approve", "reject"].includes(action)) {
+    throw new HttpsError("invalid-argument", "Ação de triagem inválida.");
+  }
+  if (
+    requestData.edits !== undefined
+    && (!requestData.edits || typeof requestData.edits !== "object" || Array.isArray(requestData.edits))
+  ) {
+    throw new HttpsError("invalid-argument", "Os campos revisados precisam ser um objeto.");
+  }
+
+  const leadRef = db.collection("automatedJobLeads").doc(leadId);
+  const jobId = `automated_${leadId}`;
+  const jobRef = db.collection("jobs").doc(jobId);
+  const requestedEdits = requestData.edits || {};
+  const rejectionReason = cleanString(requestData.reason).slice(0, 1000);
+
+  return db.runTransaction(async (transaction) => {
+    const leadSnapshot = await transaction.get(leadRef);
+    if (!leadSnapshot.exists) {
+      throw new HttpsError("not-found", "Lead automatizado não encontrado.");
+    }
+
+    const lead = leadSnapshot.data();
+    const reviewState = automatedLeadReviewState(lead);
+
+    if (action === "reject") {
+      if (reviewState === "rejected") {
+        return { action: "rejected", leadId, alreadyProcessed: true };
+      }
+      if (reviewState !== "pending") {
+        throw new HttpsError("failed-precondition", "Somente leads pendentes podem ser rejeitados.");
+      }
+      transaction.update(leadRef, {
+        reviewStatus: "rejected",
+        triageStatus: "rejected",
+        rejectionReason: rejectionReason || "Lead rejeitado pelo administrador.",
+        reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+        reviewedByUid: adminUser.uid,
+        reviewedByEmail: adminUser.email,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      return { action: "rejected", leadId, alreadyProcessed: false };
+    }
+
+    if (action === "save") {
+      if (reviewState !== "pending") {
+        throw new HttpsError("failed-precondition", "Somente leads pendentes podem ser editados.");
+      }
+      const reviewDraft = buildAutomatedLeadReviewDraft(
+        lead,
+        requestedEdits,
+        lead.reviewDraft && typeof lead.reviewDraft === "object" ? lead.reviewDraft : {},
+      );
+      transaction.update(leadRef, {
+        reviewDraft,
+        reviewDraftUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        reviewDraftUpdatedByUid: adminUser.uid,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      return { action: "saved", leadId };
+    }
+
+    if (reviewState === "approved") {
+      if (lead.jobId) {
+        return { action: "approved", leadId, jobId: lead.jobId, alreadyProcessed: true };
+      }
+      const existingJobSnapshot = await transaction.get(jobRef);
+      if (existingJobSnapshot.exists && existingJobSnapshot.data().automatedLeadId === leadId) {
+        transaction.update(leadRef, {
+          jobId,
+          jobPath: `jobs/${jobId}`,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        return { action: "approved", leadId, jobId, alreadyProcessed: true };
+      }
+      throw new HttpsError("failed-precondition", "Lead aprovado sem referência segura à vaga publicada.");
+    }
+    if (reviewState !== "pending") {
+      throw new HttpsError("failed-precondition", "Somente leads pendentes podem ser aprovados.");
+    }
+
+    const existingJobSnapshot = await transaction.get(jobRef);
+    if (existingJobSnapshot.exists) {
+      if (existingJobSnapshot.data().automatedLeadId !== leadId) {
+        throw new HttpsError("already-exists", "Já existe um documento associado a este identificador de publicação.");
+      }
+      transaction.update(leadRef, {
+        reviewStatus: "approved",
+        triageStatus: "approved",
+        jobId,
+        jobPath: `jobs/${jobId}`,
+        reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+        reviewedByUid: adminUser.uid,
+        reviewedByEmail: adminUser.email,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      return { action: "approved", leadId, jobId, alreadyProcessed: true };
+    }
+
+    const previousDraft = lead.reviewDraft && typeof lead.reviewDraft === "object"
+      ? lead.reviewDraft
+      : {};
+    const reviewDraft = buildAutomatedLeadReviewDraft(lead, requestedEdits, previousDraft);
+    const jobPayload = buildAutomatedPublishedJob(lead, leadId, adminUser, reviewDraft);
+    transaction.create(jobRef, jobPayload);
+    transaction.update(leadRef, {
+      reviewDraft,
+      reviewStatus: "approved",
+      triageStatus: "approved",
+      jobId,
+      jobPath: `jobs/${jobId}`,
+      publishedAt: admin.firestore.FieldValue.serverTimestamp(),
+      reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+      reviewedByUid: adminUser.uid,
+      reviewedByEmail: adminUser.email,
+      rejectionReason: "",
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return { action: "approved", leadId, jobId, alreadyProcessed: false };
+  });
 });
 
 exports.createPublicationCheckout = onCall({ region: REGION, secrets: [mercadoPagoAccessToken] }, async (request) => {
