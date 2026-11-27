@@ -62,10 +62,11 @@ service cloud.firestore {
       allow list: if isAdmin();
       allow create: if ownUser(uid)
         && request.resource.data.role in ['candidate', 'company']
+        && !request.resource.data.keys().hasAny(['admin'])
         && request.resource.data.email == request.auth.token.email;
       allow update: if (
         ownUser(uid)
-        && !request.resource.data.diff(resource.data).changedKeys().hasAny(['role', 'admin'])
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'admin'])
       ) || isAdmin();
       allow delete: if isAdmin();
     }
