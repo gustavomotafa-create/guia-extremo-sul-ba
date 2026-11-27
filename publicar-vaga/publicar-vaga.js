@@ -50,7 +50,7 @@ form.addEventListener("submit", async (event) => {
   if (!firebaseApi?.isFirebaseConfigured()) {
     showStatus(
       "Firebase ainda não configurado.",
-      "Adicione as chaves reais em js/firebase-config.js para publicar vagas com autenticação, limite diário e aprovação.",
+      "Adicione as chaves reais em js/firebase-config.js para publicar vagas com autenticação, limite diário e moderação automática.",
     );
     return;
   }
@@ -74,7 +74,11 @@ form.addEventListener("submit", async (event) => {
     }
 
     form.reset();
-    showStatus("Oportunidade enviada para aprovação.", "A publicação entrou como pendente e será analisada pelo admin do Girassol Vagas.");
+    if (result.moderationStatus === "approve" && result.status === "aprovada") {
+      showStatus("Vaga publicada automaticamente.", "A oportunidade passou pelas validações e já está disponível no Girassol Vagas.");
+    } else {
+      showStatus("Vaga enviada para revisão excepcional.", "Identificamos sinais que precisam de uma análise adicional antes da publicação.");
+    }
   } catch (error) {
     showStatus("Não foi possível enviar a oportunidade.", error.message || "Tente novamente em alguns instantes.");
   }

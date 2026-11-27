@@ -1,6 +1,7 @@
 const admin = require("firebase-admin");
 const { defineSecret, defineString } = require("firebase-functions/params");
 const { HttpsError, onCall, onRequest } = require("firebase-functions/v2/https");
+const { evaluateJobModeration } = require("./job-moderation");
 
 admin.initializeApp();
 
@@ -10,6 +11,17 @@ const FREE_DAILY_LIMIT = 2;
 const EXTRA_PACK_SIZE = 2;
 const EXTRA_PACK_PRICE = 5;
 const ADMIN_EMAILS = ["sunflowercollectivegf@gmail.com"];
+const ACTIVE_JOB_STATUSES = new Set(["aprovada", "pendente", "aguardando_pagamento"]);
+const AUTOMATED_LEAD_PENDING_STATUSES = new Set([
+  "",
+  "new",
+  "pending",
+  "pending_review",
+  "pending-review",
+  "lead_pending_review",
+  "aguardando_revisao",
+  "aguardando revisao",
+]);
 
 const mercadoPagoAccessToken = defineSecret("MERCADO_PAGO_ACCESS_TOKEN");
 const publicSiteUrl = defineString("PUBLIC_SITE_URL", {
@@ -44,6 +56,91 @@ function parseSalary(value) {
   return Number.isFinite(number) ? number : 0;
 }
 
+function moderationContextFor(auth, role, companyData = {}, hasPublicationHistory = false, duplicateFingerprint = false, now = new Date()) {
+  return {
+    now,
+    profileRole: role,
+    emailVerified: auth.token.email_verified === true,
+    companyActive: companyData.active === true && companyData.verifiedByAdmin === true,
+    hasPublicationHistory,
+    duplicateFingerprint,
+  };
+}
+
+function assertModerationAllowsSubmission(result) {
+  if (result.decision !== "block") return;
+  const reason = result.reasons.find((item) => item.severity === "block");
+  throw new HttpsError("failed-precondition", reason?.message || "A vaga não passou pela moderação automática.");
+}
+
+function moderationFields(result) {
+  return {
+    expiresAt: result.expiresAt,
+    fingerprint: result.fingerprint,
+    moderationStatus: result.decision,
+    moderationFlags: result.flags,
+    moderationReasons: result.reasons,
+    moderationVersion: result.ruleVersion,
+    moderatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+}
+
+function activeDuplicateExists(snapshot, excludedJobId = "") {
+  return snapshot?.size >= 20 || (snapshot?.docs || []).some((document) => {
+    if (document.id === excludedJobId) return false;
+    return ACTIVE_JOB_STATUSES.has(document.data()?.status);
+  });
+}
+
+function publisherHistoryQuery(uid) {
+  return db.collection("jobs")
+    .where("companyId", "==", uid)
+    .limit(20);
+}
+
+function hasPublisherHistory(snapshot) {
+  return (snapshot?.docs || []).some((document) => document.data()?.status === "aprovada");
+}
+
+function duplicateFingerprintQuery(fingerprint) {
+  return db.collection("jobs")
+    .where("fingerprint", "==", fingerprint)
+    .limit(20);
+}
+
+function moderationQuotaStatus(decision, paymentStatus) {
+  if (decision === "review") return "pendente";
+  if (paymentStatus === "aguardando_pagamento") return "aguardando_pagamento";
+  return decision === "approve" ? "aprovada" : "pendente";
+}
+
+function moderationStatusForPayment(job, moderation) {
+  const result = moderationFields(moderation);
+  if (moderation.decision === "block") {
+    const reason = moderation.reasons.find((item) => item.severity === "block");
+    return {
+      ...result,
+      status: "rejeitada",
+      moderationStatus: "block",
+      rejectionReason: reason?.message || "A vaga não passou pela moderação automática.",
+    };
+  }
+  if (moderation.decision === "review") {
+    return {
+      ...result,
+      status: "pendente",
+      moderationStatus: "review",
+      rejectionReason: "",
+    };
+  }
+  return {
+    ...result,
+    status: job.status === "pausada" ? "pausada" : "aprovada",
+    moderationStatus: "approve",
+    rejectionReason: "",
+  };
+}
+
 function isAdminAuth(auth) {
   return Boolean(
     auth
@@ -65,6 +162,219 @@ async function assertPublisher(auth) {
   return { uid: auth.uid, role, email: auth.token.email || "" };
 }
 
+async function assertAdminUser(auth) {
+  if (!auth) {
+    throw new HttpsError("unauthenticated", "Entre para revisar oportunidades.");
+  }
+  if (isAdminAuth(auth)) return { uid: auth.uid, email: auth.token.email || "" };
+
+  const profile = await db.collection("users").doc(auth.uid).get();
+  if (profile.exists && profile.data().role === "admin") {
+    return { uid: auth.uid, email: auth.token.email || "" };
+  }
+  throw new HttpsError("permission-denied", "Somente administradores podem revisar oportunidades.");
+}
+
+function automatedLeadReviewState(lead) {
+  const statuses = ["reviewStatus", "triageStatus", "status"]
+    .map((field) => cleanString(lead[field]).toLowerCase().replace(/\s+/g, "_"))
+    .filter(Boolean);
+  const hasApproved = statuses.some((status) => ["approved", "aprovada", "aprovado"].includes(status));
+  const hasRejected = statuses.some((status) => ["rejected", "rejeitada", "rejeitado"].includes(status));
+  if (hasApproved && hasRejected) return "conflict";
+  if (hasApproved) return "approved";
+  if (hasRejected) return "rejected";
+  return statuses.every((status) => AUTOMATED_LEAD_PENDING_STATUSES.has(status))
+    ? "pending"
+    : "other";
+}
+
+function reviewDraftValue(edits, previousDraft, lead, field, fallback = "") {
+  if (Object.hasOwn(edits, field)) return edits[field];
+  if (Object.hasOwn(previousDraft, field)) return previousDraft[field];
+  return lead[field] ?? fallback;
+}
+
+function buildAutomatedLeadReviewDraft(lead, edits = {}, previousDraft = {}) {
+  const stringField = (field, fallback = "", maxLength = 4000) => (
+    cleanString(reviewDraftValue(edits, previousDraft, lead, field, fallback)).slice(0, maxLength)
+  );
+  const benefitsValue = reviewDraftValue(edits, previousDraft, lead, "benefits", []);
+  const benefits = Array.isArray(benefitsValue)
+    ? benefitsValue.map((item) => cleanString(item).slice(0, 300)).filter(Boolean).slice(0, 12)
+    : cleanString(benefitsValue).split(",").map((item) => item.trim().slice(0, 300)).filter(Boolean).slice(0, 12);
+
+  return {
+    companyName: stringField("companyName", "", 180),
+    title: stringField("title", "", 180),
+    city: stringField("city", lead.city || lead.locationLabel || "", 120),
+    category: stringField("category", "Serviços Gerais", 120),
+    salaryLabel: stringField("salaryLabel", lead.salary ?? "A combinar", 120),
+    contract: stringField("contract", "", 80),
+    modality: stringField("modality", "", 80),
+    level: stringField("level", "Júnior", 80),
+    whatsapp: cleanWhatsapp(reviewDraftValue(edits, previousDraft, lead, "whatsapp", "")).slice(0, 20),
+    description: stringField("description", "", 4000),
+    requirements: stringField("requirements", "", 4000),
+    benefits,
+    logoUrl: stringField("logoUrl", "", 1000),
+  };
+}
+
+function verifiedHttpsUrl(value, label, { required = false } = {}) {
+  const rawUrl = cleanString(value);
+  if (!rawUrl && !required) return null;
+  try {
+    const url = new URL(rawUrl);
+    if (url.protocol !== "https:" || url.username || url.password) throw new Error("invalid");
+    return url.href;
+  } catch {
+    throw new HttpsError("failed-precondition", `${label} precisa ser uma URL HTTPS válida.`);
+  }
+}
+
+function timestampDate(value) {
+  if (value && typeof value.toDate === "function") return value.toDate();
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function buildAutomatedPublishedJob(lead, leadId, adminUser, draft) {
+  const requiredFields = [
+    draft.companyName,
+    draft.title,
+    draft.city,
+    draft.contract,
+    draft.modality,
+    draft.whatsapp,
+    draft.description,
+    draft.requirements,
+  ];
+  if (requiredFields.some((value) => !value)) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Complete empresa, cargo, município/local, contrato, modalidade, WhatsApp, descrição e requisitos antes de aprovar.",
+    );
+  }
+
+  if (lead.validityStatus === "expired" || lead.availability === "unavailable") {
+    throw new HttpsError("failed-precondition", "Esta oportunidade está marcada como expirada ou indisponível.");
+  }
+  const expiresAt = lead.expiresAt || lead.validThrough || null;
+  const expiryDate = timestampDate(expiresAt);
+  if (!expiryDate || expiryDate.getTime() <= Date.now()) {
+    throw new HttpsError("failed-precondition", "A validade da oportunidade expirou ou não foi informada.");
+  }
+
+  const sourceData = lead.source && typeof lead.source === "object" ? lead.source : {};
+  const sourceId = cleanString(lead.sourceId || sourceData.id).slice(0, 120);
+  const sourceName = cleanString(lead.sourceName || sourceData.name).slice(0, 240);
+  const sourceUrl = verifiedHttpsUrl(lead.sourceUrl || sourceData.url, "Link da vaga na fonte", { required: true });
+  if (!sourceId || !sourceName) {
+    throw new HttpsError("failed-precondition", "A oportunidade precisa ter uma fonte identificável.");
+  }
+  const sourceAttributionUrl = verifiedHttpsUrl(
+    lead.attributionUrl || sourceData.attributionUrl,
+    "Link de atribuição da fonte",
+  );
+  const sourceTermsUrl = verifiedHttpsUrl(
+    lead.termsUrl || sourceData.termsUrl,
+    "Link dos termos da fonte",
+  );
+  const sourceReferences = Array.isArray(lead.sourceReferences)
+    ? lead.sourceReferences.slice(0, 20).map((reference) => ({
+      sourceId: cleanString(reference?.sourceId).slice(0, 120),
+      sourceName: cleanString(reference?.sourceName).slice(0, 240),
+      sourceUrl: verifiedHttpsUrl(reference?.sourceUrl, "Link de vaga referenciada", { required: true }),
+      termsUrl: verifiedHttpsUrl(reference?.termsUrl, "Link dos termos referenciados"),
+      attributionUrl: verifiedHttpsUrl(reference?.attributionUrl, "Link de atribuição referenciado"),
+    }))
+    : [];
+  const source = {
+    id: sourceId,
+    name: sourceName,
+    provider: cleanString(sourceData.provider || "json-feed").slice(0, 80),
+    url: sourceUrl,
+    termsUrl: sourceTermsUrl,
+    attributionUrl: sourceAttributionUrl,
+  };
+  const originalCity = cleanString(lead.city || lead.locationLabel);
+  const sameMunicipality = normalizeCityKey(draft.city) === normalizeCityKey(originalCity);
+  const locationMetadata = sameMunicipality
+    ? {
+      ibgeCode: lead.ibgeCode || lead.municipalityId || null,
+      municipalityId: lead.municipalityId || lead.ibgeCode || null,
+      region: lead.region || null,
+      locationScope: lead.locationScope || "unverified",
+      locationLabel: lead.locationLabel || draft.city,
+      locality: lead.locality || null,
+      sourceLocation: lead.sourceLocation || null,
+    }
+    : {
+      ibgeCode: null,
+      municipalityId: null,
+      region: null,
+      locationScope: "unverified",
+      locationLabel: draft.city,
+      locality: null,
+      sourceLocation: draft.city,
+    };
+
+  return {
+    automatedLeadId: leadId,
+    companyId: adminUser.uid,
+    companyOwnerUid: adminUser.uid,
+    companyName: draft.companyName,
+    title: draft.title,
+    city: draft.city,
+    state: "BA",
+    ...locationMetadata,
+    category: draft.category || "Serviços Gerais",
+    contract: draft.contract,
+    modality: draft.modality,
+    level: draft.level || "Júnior",
+    salary: parseSalary(draft.salaryLabel),
+    salaryLabel: draft.salaryLabel || "A combinar",
+    whatsapp: draft.whatsapp,
+    description: draft.description,
+    requirements: draft.requirements,
+    benefits: draft.benefits,
+    logoUrl: draft.logoUrl,
+    tags: [draft.modality, draft.contract].filter(Boolean),
+    status: "aprovada",
+    paymentStatus: "gratis",
+    quotaType: "automated",
+    origin: "automated_source",
+    source,
+    sourceId,
+    sourceName,
+    sourceUrl,
+    sourceAttributionUrl,
+    sourceTermsUrl,
+    sourceReferences,
+    sourcePublishedAt: lead.publishedAt || null,
+    collectedAt: lead.collectedAt || null,
+    fetchedAt: lead.fetchedAt || null,
+    expiresAt,
+    validThrough: expiresAt,
+    validityStatus: lead.validityStatus || "active",
+    availability: lead.availability || "unknown",
+    dateKey: todayInBahia(),
+    publishedAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+}
+
+function normalizeCityKey(value) {
+  return cleanString(value)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 async function assertJobOwnerOrAdmin(auth, jobId) {
   if (!auth) {
     throw new HttpsError("unauthenticated", "Entre para continuar.");
@@ -84,7 +394,7 @@ async function assertJobOwnerOrAdmin(auth, jobId) {
   return { jobRef, job };
 }
 
-function buildJobPayload(data, auth, quota) {
+function buildJobPayload(data, auth, quota, moderation = null) {
   const companyName = cleanString(data.companyName);
   const title = cleanString(data.title);
   const city = cleanString(data.city);
@@ -130,6 +440,7 @@ function buildJobPayload(data, auth, quota) {
     origin: quota.origin || "company",
     source: quota.origin || "company",
     dateKey: quota.dateKey,
+    ...(moderation ? moderationFields(moderation) : {}),
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   };
@@ -246,12 +557,37 @@ exports.createJobDraft = onCall({ region: REGION, secrets: [mercadoPagoAccessTok
     };
   }
 
+  const moderationNow = new Date().toISOString();
+  const preliminaryModeration = evaluateJobModeration(
+    request.data || {},
+    moderationContextFor(request.auth, company.role, { active: true }, true, false, moderationNow),
+  );
+  assertModerationAllowsSubmission(preliminaryModeration);
+
   const usageRef = db.collection("companyDailyUsage").doc(`${company.uid}_${dateKey}`);
   const jobRef = db.collection("jobs").doc();
-  let requiresPayment = false;
 
   const result = await db.runTransaction(async (transaction) => {
-    const usageSnap = await transaction.get(usageRef);
+    const [usageSnap, duplicateSnapshot, companySnapshot, historySnapshot] = await Promise.all([
+      transaction.get(usageRef),
+      transaction.get(duplicateFingerprintQuery(preliminaryModeration.fingerprint)),
+      transaction.get(db.collection("companies").doc(company.uid)),
+      transaction.get(publisherHistoryQuery(company.uid)),
+    ]);
+
+    const moderation = evaluateJobModeration(
+      request.data || {},
+      moderationContextFor(
+        request.auth,
+        company.role,
+        companySnapshot.exists ? companySnapshot.data() : {},
+        hasPublisherHistory(historySnapshot),
+        activeDuplicateExists(duplicateSnapshot),
+        moderationNow,
+      ),
+    );
+    assertModerationAllowsSubmission(moderation);
+
     const usage = usageSnap.exists ? usageSnap.data() : {};
     const freeUsed = Number(usage.freeUsed || 0);
     const paidCredits = Number(usage.paidCredits || 0);
@@ -263,6 +599,7 @@ exports.createJobDraft = onCall({ region: REGION, secrets: [mercadoPagoAccessTok
       origin: "company",
       dateKey,
     };
+    let requiresPayment = false;
     const usagePatch = {
       companyId: company.uid,
       dateKey,
@@ -286,7 +623,11 @@ exports.createJobDraft = onCall({ region: REGION, secrets: [mercadoPagoAccessTok
       requiresPayment = true;
     }
 
-    const jobPayload = buildJobPayload(request.data || {}, request.auth, quota);
+    quota.status = moderationQuotaStatus(moderation.decision, quota.paymentStatus);
+    const jobPayload = buildJobPayload(request.data || {}, request.auth, quota, moderation);
+    if (jobPayload.status === "aprovada") {
+      jobPayload.publishedAt = admin.firestore.FieldValue.serverTimestamp();
+    }
     const usagePayload = {
       companyId: company.uid,
       dateKey,
@@ -308,10 +649,12 @@ exports.createJobDraft = onCall({ region: REGION, secrets: [mercadoPagoAccessTok
       status: jobPayload.status,
       paymentStatus: jobPayload.paymentStatus,
       requiresPayment,
+      moderationStatus: moderation.decision,
+      moderationFlags: moderation.flags,
     };
   });
 
-  if (requiresPayment) {
+  if (result.requiresPayment) {
     const checkout = await createMercadoPagoPreference({
       auth: request.auth,
       companyId: company.uid,
@@ -324,6 +667,287 @@ exports.createJobDraft = onCall({ region: REGION, secrets: [mercadoPagoAccessTok
   }
 
   return result;
+});
+
+exports.updateCompanyJob = onCall({ region: REGION }, async (request) => {
+  const publisher = await assertPublisher(request.auth);
+  const jobId = cleanString(request.data?.jobId).slice(0, 200);
+  const edits = request.data?.edits;
+  if (!jobId || !edits || typeof edits !== "object" || Array.isArray(edits)) {
+    throw new HttpsError("invalid-argument", "Informe a vaga e os campos revisados.");
+  }
+
+  const moderationNow = new Date().toISOString();
+  const preliminaryModeration = evaluateJobModeration(
+    edits,
+    moderationContextFor(request.auth, publisher.role, { active: true }, true, false, moderationNow),
+  );
+  assertModerationAllowsSubmission(preliminaryModeration);
+
+  const jobRef = db.collection("jobs").doc(jobId);
+  return db.runTransaction(async (transaction) => {
+    const jobSnapshot = await transaction.get(jobRef);
+    if (!jobSnapshot.exists) {
+      throw new HttpsError("not-found", "Vaga não encontrada.");
+    }
+
+    const original = jobSnapshot.data();
+    if (original.companyId !== publisher.uid) {
+      throw new HttpsError("permission-denied", "Você não pode editar esta vaga.");
+    }
+
+    const [duplicateSnapshot, companySnapshot, historySnapshot] = await Promise.all([
+      transaction.get(duplicateFingerprintQuery(preliminaryModeration.fingerprint)),
+      transaction.get(db.collection("companies").doc(publisher.uid)),
+      transaction.get(publisherHistoryQuery(publisher.uid)),
+    ]);
+
+    let moderation = evaluateJobModeration(
+      edits,
+      moderationContextFor(
+        request.auth,
+        publisher.role,
+        companySnapshot.exists ? companySnapshot.data() : {},
+        hasPublisherHistory(historySnapshot),
+        activeDuplicateExists(duplicateSnapshot, jobId),
+        moderationNow,
+      ),
+    );
+    assertModerationAllowsSubmission(moderation);
+    if (original.status === "rejeitada" && moderation.decision === "approve") {
+      moderation = {
+        ...moderation,
+        decision: "review",
+        flags: [...new Set([...moderation.flags, "previously_rejected"])].sort(),
+        reasons: [
+          ...moderation.reasons,
+          {
+            code: "previously_rejected",
+            message: "Vaga rejeitada anteriormente; requer reavaliação administrativa.",
+            severity: "review",
+          },
+        ],
+      };
+    }
+
+    const paymentStatus = original.paymentStatus || "gratis";
+    const status = original.status === "pausada"
+      ? "pausada"
+      : moderationQuotaStatus(moderation.decision, paymentStatus);
+    const jobPayload = buildJobPayload(edits, request.auth, {
+      status,
+      paymentStatus,
+      quotaType: original.quotaType || "gratis",
+      origin: original.origin || "company",
+      dateKey: original.dateKey || todayInBahia(),
+    }, moderation);
+    delete jobPayload.createdAt;
+    if (status === "aprovada") {
+      jobPayload.publishedAt = admin.firestore.FieldValue.serverTimestamp();
+    } else {
+      jobPayload.publishedAt = null;
+    }
+    jobPayload.rejectionReason = "";
+
+    transaction.update(jobRef, jobPayload);
+    return {
+      jobId,
+      status,
+      paymentStatus,
+      moderationStatus: moderation.decision,
+      moderationFlags: moderation.flags,
+    };
+  });
+});
+
+exports.setCompanyVerification = onCall({ region: REGION }, async (request) => {
+  const adminUser = await assertAdminUser(request.auth);
+  const companyId = cleanString(request.data?.companyId).slice(0, 200);
+  const verified = request.data?.verified;
+  if (!companyId || typeof verified !== "boolean") {
+    throw new HttpsError("invalid-argument", "Informe a empresa e o novo estado de verificação.");
+  }
+
+  const companyRef = db.collection("companies").doc(companyId);
+  return db.runTransaction(async (transaction) => {
+    const companySnapshot = await transaction.get(companyRef);
+    if (!companySnapshot.exists) {
+      throw new HttpsError("not-found", "Empresa não encontrada.");
+    }
+
+    const now = admin.firestore.FieldValue.serverTimestamp();
+    transaction.update(companyRef, {
+      verifiedByAdmin: verified,
+      active: verified,
+      verifiedAt: verified ? now : null,
+      verifiedByUid: verified ? adminUser.uid : null,
+      verifiedByEmail: verified ? adminUser.email : null,
+      verificationUpdatedAt: now,
+      verificationUpdatedByUid: adminUser.uid,
+      verificationRevokedAt: verified ? null : now,
+      verificationRevokedByUid: verified ? null : adminUser.uid,
+      updatedAt: now,
+    });
+
+    return {
+      companyId,
+      verifiedByAdmin: verified,
+      active: verified,
+    };
+  });
+});
+
+exports.listCompaniesForAdmin = onCall({ region: REGION }, async (request) => {
+  await assertAdminUser(request.auth);
+  const snapshot = await db.collection("companies").limit(201).get();
+  const hasMore = snapshot.docs.length > 200;
+  const companies = snapshot.docs.slice(0, 200).map((document) => {
+    const company = document.data();
+    return {
+      id: document.id,
+      ownerUid: company.ownerUid || document.id,
+      name: cleanString(company.name).slice(0, 180),
+      tradeName: cleanString(company.tradeName).slice(0, 180),
+      email: cleanString(company.email).slice(0, 254),
+      cnpj: cleanString(company.cnpj).slice(0, 32),
+      active: company.active === true,
+      verifiedByAdmin: company.verifiedByAdmin === true,
+      verifiedAt: timestampDate(company.verifiedAt)?.toISOString() || null,
+      verifiedByUid: company.verifiedByUid || null,
+      verifiedByEmail: company.verifiedByEmail || null,
+    };
+  });
+  return { companies, hasMore };
+});
+
+exports.reviewAutomatedJobLead = onCall({ region: REGION }, async (request) => {
+  const adminUser = await assertAdminUser(request.auth);
+  const requestData = request.data || {};
+  const leadId = cleanString(requestData.leadId).toLowerCase();
+  const action = cleanString(requestData.action);
+  if (!/^[a-f0-9]{64}$/.test(leadId)) {
+    throw new HttpsError("invalid-argument", "Identificador do lead inválido.");
+  }
+  if (!["save", "approve", "reject"].includes(action)) {
+    throw new HttpsError("invalid-argument", "Ação de triagem inválida.");
+  }
+  if (
+    requestData.edits !== undefined
+    && (!requestData.edits || typeof requestData.edits !== "object" || Array.isArray(requestData.edits))
+  ) {
+    throw new HttpsError("invalid-argument", "Os campos revisados precisam ser um objeto.");
+  }
+
+  const leadRef = db.collection("automatedJobLeads").doc(leadId);
+  const jobId = `automated_${leadId}`;
+  const jobRef = db.collection("jobs").doc(jobId);
+  const requestedEdits = requestData.edits || {};
+  const rejectionReason = cleanString(requestData.reason).slice(0, 1000);
+
+  return db.runTransaction(async (transaction) => {
+    const leadSnapshot = await transaction.get(leadRef);
+    if (!leadSnapshot.exists) {
+      throw new HttpsError("not-found", "Lead automatizado não encontrado.");
+    }
+
+    const lead = leadSnapshot.data();
+    const reviewState = automatedLeadReviewState(lead);
+
+    if (action === "reject") {
+      if (reviewState === "rejected") {
+        return { action: "rejected", leadId, alreadyProcessed: true };
+      }
+      if (reviewState !== "pending") {
+        throw new HttpsError("failed-precondition", "Somente leads pendentes podem ser rejeitados.");
+      }
+      transaction.update(leadRef, {
+        reviewStatus: "rejected",
+        triageStatus: "rejected",
+        rejectionReason: rejectionReason || "Lead rejeitado pelo administrador.",
+        reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+        reviewedByUid: adminUser.uid,
+        reviewedByEmail: adminUser.email,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      return { action: "rejected", leadId, alreadyProcessed: false };
+    }
+
+    if (action === "save") {
+      if (reviewState !== "pending") {
+        throw new HttpsError("failed-precondition", "Somente leads pendentes podem ser editados.");
+      }
+      const reviewDraft = buildAutomatedLeadReviewDraft(
+        lead,
+        requestedEdits,
+        lead.reviewDraft && typeof lead.reviewDraft === "object" ? lead.reviewDraft : {},
+      );
+      transaction.update(leadRef, {
+        reviewDraft,
+        reviewDraftUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        reviewDraftUpdatedByUid: adminUser.uid,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      return { action: "saved", leadId };
+    }
+
+    if (reviewState === "approved") {
+      if (lead.jobId) {
+        return { action: "approved", leadId, jobId: lead.jobId, alreadyProcessed: true };
+      }
+      const existingJobSnapshot = await transaction.get(jobRef);
+      if (existingJobSnapshot.exists && existingJobSnapshot.data().automatedLeadId === leadId) {
+        transaction.update(leadRef, {
+          jobId,
+          jobPath: `jobs/${jobId}`,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        return { action: "approved", leadId, jobId, alreadyProcessed: true };
+      }
+      throw new HttpsError("failed-precondition", "Lead aprovado sem referência segura à vaga publicada.");
+    }
+    if (reviewState !== "pending") {
+      throw new HttpsError("failed-precondition", "Somente leads pendentes podem ser aprovados.");
+    }
+
+    const existingJobSnapshot = await transaction.get(jobRef);
+    if (existingJobSnapshot.exists) {
+      if (existingJobSnapshot.data().automatedLeadId !== leadId) {
+        throw new HttpsError("already-exists", "Já existe um documento associado a este identificador de publicação.");
+      }
+      transaction.update(leadRef, {
+        reviewStatus: "approved",
+        triageStatus: "approved",
+        jobId,
+        jobPath: `jobs/${jobId}`,
+        reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+        reviewedByUid: adminUser.uid,
+        reviewedByEmail: adminUser.email,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      return { action: "approved", leadId, jobId, alreadyProcessed: true };
+    }
+
+    const previousDraft = lead.reviewDraft && typeof lead.reviewDraft === "object"
+      ? lead.reviewDraft
+      : {};
+    const reviewDraft = buildAutomatedLeadReviewDraft(lead, requestedEdits, previousDraft);
+    const jobPayload = buildAutomatedPublishedJob(lead, leadId, adminUser, reviewDraft);
+    transaction.create(jobRef, jobPayload);
+    transaction.update(leadRef, {
+      reviewDraft,
+      reviewStatus: "approved",
+      triageStatus: "approved",
+      jobId,
+      jobPath: `jobs/${jobId}`,
+      publishedAt: admin.firestore.FieldValue.serverTimestamp(),
+      reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+      reviewedByUid: adminUser.uid,
+      reviewedByEmail: adminUser.email,
+      rejectionReason: "",
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return { action: "approved", leadId, jobId, alreadyProcessed: false };
+  });
 });
 
 exports.createPublicationCheckout = onCall({ region: REGION, secrets: [mercadoPagoAccessToken] }, async (request) => {
@@ -394,11 +1018,80 @@ exports.mercadoPagoWebhook = onRequest({ region: REGION, secrets: [mercadoPagoAc
   const paymentRef = db.collection("payments").doc(localPaymentId);
   const usageRef = db.collection("companyDailyUsage").doc(`${companyId}_${dateKey}`);
   const jobRef = jobId ? db.collection("jobs").doc(jobId) : null;
+  let publisherAuthUser = null;
+  if (jobRef) {
+    try {
+      publisherAuthUser = await admin.auth().getUser(companyId);
+    } catch (error) {
+      if (error.code !== "auth/user-not-found") throw error;
+    }
+  }
+  const moderationNow = new Date().toISOString();
 
   await db.runTransaction(async (transaction) => {
-    const paymentSnap = await transaction.get(paymentRef);
-    const usageSnap = await transaction.get(usageRef);
+    const [paymentSnap, usageSnap, jobSnapshot] = await Promise.all([
+      transaction.get(paymentRef),
+      transaction.get(usageRef),
+      jobRef ? transaction.get(jobRef) : Promise.resolve(null),
+    ]);
     if (paymentSnap.exists && paymentSnap.data().status === "approved") return;
+    let paymentModeration = null;
+    if (
+      jobSnapshot?.exists
+      && jobSnapshot.data().paymentStatus === "aguardando_pagamento"
+      && ["aguardando_pagamento", "pendente"].includes(jobSnapshot.data().status)
+    ) {
+      const currentJob = jobSnapshot.data();
+      const ownerId = cleanString(currentJob.companyId);
+      const [profileSnapshot, companySnapshot, historySnapshot] = ownerId
+        ? await Promise.all([
+          transaction.get(db.collection("users").doc(ownerId)),
+          transaction.get(db.collection("companies").doc(ownerId)),
+          transaction.get(publisherHistoryQuery(ownerId)),
+        ])
+        : [{ exists: false }, { exists: false }, { docs: [] }];
+      const ownerMatchesPayment = ownerId === companyId;
+      const moderationAuth = {
+        token: {
+          email_verified: ownerMatchesPayment
+            && publisherAuthUser?.emailVerified === true
+            && publisherAuthUser.disabled !== true,
+        },
+      };
+      const role = ownerMatchesPayment && profileSnapshot.exists
+        ? profileSnapshot.data().role
+        : undefined;
+      const companyData = ownerMatchesPayment && companySnapshot.exists
+        ? companySnapshot.data()
+        : {};
+      const hasHistory = hasPublisherHistory(historySnapshot);
+      const preliminaryModeration = evaluateJobModeration(
+        currentJob,
+        moderationContextFor(
+          moderationAuth,
+          role,
+          companyData,
+          hasHistory,
+          false,
+          moderationNow,
+        ),
+      );
+      const duplicateSnapshot = await transaction.get(
+        duplicateFingerprintQuery(preliminaryModeration.fingerprint),
+      );
+      const moderation = evaluateJobModeration(
+        currentJob,
+        moderationContextFor(
+          moderationAuth,
+          role,
+          companyData,
+          hasHistory,
+          activeDuplicateExists(duplicateSnapshot, jobRef.id),
+          moderationNow,
+        ),
+      );
+      paymentModeration = moderationStatusForPayment(currentJob, moderation);
+    }
 
     transaction.set(paymentRef, {
       companyId,
@@ -428,13 +1121,18 @@ exports.mercadoPagoWebhook = onRequest({ region: REGION, secrets: [mercadoPagoAc
     }
 
     if (jobRef) {
-      transaction.update(jobRef, {
-        status: "pendente",
-        paymentStatus: "paga",
-        paymentId: localPaymentId,
-        paidAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
+      if (jobSnapshot?.exists && paymentModeration) {
+        transaction.update(jobRef, {
+          ...paymentModeration,
+          paymentStatus: "paga",
+          paymentId: localPaymentId,
+          paidAt: admin.firestore.FieldValue.serverTimestamp(),
+          ...(paymentModeration.status === "aprovada"
+            ? { publishedAt: admin.firestore.FieldValue.serverTimestamp() }
+            : { publishedAt: null }),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
       transaction.set(usageRef, {
         ...usagePayload,
         paidCredits: admin.firestore.FieldValue.increment(Math.max(credits - 1, 0)),

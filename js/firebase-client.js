@@ -76,7 +76,7 @@ async function ensureUserProfile(services, user, role = "candidate") {
       name: user.displayName || user.email,
       email: user.email,
       createdAt: firestoreSdk.serverTimestamp(),
-      active: true,
+      active: false,
     });
   }
 
@@ -119,7 +119,7 @@ export async function signUpWithEmail({ email, password, role, name }) {
       name: name || email,
       email,
       createdAt: firestoreSdk.serverTimestamp(),
-      active: true,
+      active: false,
     });
   }
 
@@ -243,6 +243,10 @@ export async function callFunction(name, payload = {}) {
 
 export async function submitJobWithQuota(payload) {
   return callFunction("createJobDraft", payload);
+}
+
+export async function updateJobWithModeration(jobId, edits) {
+  return callFunction("updateCompanyJob", { jobId, edits });
 }
 
 export async function createCheckout(jobId) {

@@ -1,0 +1,64 @@
+name: Girassol Vagas daily job search
+
+on:
+  schedule:
+    - cron: "13 9 * * *"
+  workflow_dispatch:
+    inputs:
+      persist:
+        description: Persist collected leads to automatedJobLeads (requires configured sources and Firebase secret)
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  search:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run focused tests
+        run: node --test functions/job-bot.test.js
+
+      # Configure JOB_SEARCH_SOURCES_JSON as an Actions secret or variable containing a JSON array, e.g.:
+      # [{"id":"source-id","name":"Source name","url":"https://public.example/jobs.json","type":"json",
+      #   "enabled":true,"authorized":true,"attributionUrl":"https://public.example/terms",
+      #   "termsUrl":"https://public.example/terms","fieldMapping":{"title":"title","company":"company",
+      #   "location":"city","url":"url"}}]
+      # Only use feeds whose terms explicitly permit this use. Never put credentials in this JSON.
+      # Set FIREBASE_SERVICE_ACCOUNT_JSON as a repository Actions secret. Scheduled persistence is
+      # opt-in via the JOB_SEARCH_PERSIST_ENABLED repository variable; manual runs use the persist input.
+      - name: Search Jobicy and configured authorized public feeds
+        env:
+          JOB_SEARCH_SOURCES_JSON: ${{ secrets.JOB_SEARCH_SOURCES_JSON || vars.JOB_SEARCH_SOURCES_JSON || '[]' }}
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          JOB_SEARCH_PERSIST: ${{ github.event_name == 'schedule' && vars.JOB_SEARCH_PERSIST_ENABLED == 'true' || github.event_name == 'workflow_dispatch' && inputs.persist }}
+        run: |
+          if [ "$JOB_SEARCH_PERSIST" = "true" ]; then
+            if [ -z "$FIREBASE_SERVICE_ACCOUNT_JSON" ]; then
+              echo "::error::Set the FIREBASE_SERVICE_ACCOUNT_JSON Actions secret before enabling --persist."
+              exit 1
+            fi
+            node functions/job-bot.js --persist --output reports/job-search-report.json
+          else
+            node functions/job-bot.js --output reports/job-search-report.json
+          fi
+
+      - name: Upload execution report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: girassol-job-search-report
+          path: reports/job-search-report.json
+          if-no-files-found: ignore
+          retention-days: 90

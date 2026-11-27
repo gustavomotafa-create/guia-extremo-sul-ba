@@ -25,13 +25,8 @@ service cloud.firestore {
     }
 
     function validCompanyJobStatus() {
-      return (
-        resource.data.paymentStatus == 'aguardando_pagamento'
-        && request.resource.data.status == 'aguardando_pagamento'
-      ) || (
-        resource.data.paymentStatus in ['gratis', 'paga']
-        && request.resource.data.status in ['pendente', 'pausada']
-      );
+      return resource.data.paymentStatus in ['gratis', 'paga']
+        && request.resource.data.status in ['pendente', 'pausada'];
     }
 
     function companyCanUpdateJob() {
@@ -79,10 +74,13 @@ service cloud.firestore {
       allow get: if ownCompany(companyId) || isAdmin();
       allow list: if isAdmin();
       allow create: if ownCompany(companyId)
-        && request.resource.data.ownerUid == request.auth.uid;
+        && request.resource.data.ownerUid == request.auth.uid
+        && (!request.resource.data.keys().hasAny(['active']) || request.resource.data.active == false)
+        && !request.resource.data.keys().hasAny(['verifiedByAdmin']);
       allow update: if (
         ownCompany(companyId)
         && request.resource.data.ownerUid == resource.data.ownerUid
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['active', 'verifiedByAdmin'])
       ) || isAdmin();
       allow delete: if isAdmin();
     }
@@ -118,6 +116,11 @@ service cloud.firestore {
     match /plans/{planId} {
       allow read: if true;
       allow write: if isAdmin();
+    }
+
+    match /automatedJobLeads/{leadId} {
+      allow read: if isAdmin();
+      allow write: if false;
     }
 
     match /{document=**} {
