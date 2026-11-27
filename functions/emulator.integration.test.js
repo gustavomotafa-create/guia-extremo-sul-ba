@@ -235,6 +235,21 @@ test("Firebase Emulator Suite: rules, moderation, company verification and lead 
   const unverifiedCompany = await createAccount("company");
 
   await t.test("client rules reject direct publication, lead writes, and company self-verification", async () => {
+    const pendingPaidJobPath = `jobs/pending-payment-rules-${Date.now()}`;
+    documentsToDelete.push(pendingPaidJobPath);
+    const seededPendingJob = await firestoreRequest(endpoints.firestore, pendingPaidJobPath, {
+      method: "PATCH",
+      idToken: FIRESTORE_OWNER_TOKEN,
+      fields: {
+        companyId: verifiedCompany.uid,
+        status: "aguardando_pagamento",
+        paymentStatus: "aguardando_pagamento",
+        title: "Atendente legítimo",
+      },
+    });
+    const pendingJobBody = await seededPendingJob.json().catch(() => ({}));
+    assert.equal(seededPendingJob.ok, true, `Could not seed pending payment fixture: ${JSON.stringify(pendingJobBody)}`);
+
     const jobWrite = await firestoreRequest(
       endpoints.firestore,
       `jobs/rules-denied-${Date.now()}`,
@@ -262,10 +277,25 @@ test("Firebase Emulator Suite: rules, moderation, company verification and lead 
         fields: { active: true, verifiedByAdmin: true },
       },
     );
+    const pendingPaymentEdit = await firestoreRequest(
+      endpoints.firestore,
+      pendingPaidJobPath,
+      {
+        method: "PATCH",
+        idToken: verifiedCompany.idToken,
+        fields: {
+          companyId: verifiedCompany.uid,
+          status: "aguardando_pagamento",
+          paymentStatus: "aguardando_pagamento",
+          title: "Pague taxa para conseguir a vaga",
+        },
+      },
+    );
 
     assert.equal(jobWrite.ok, false, "clients must not publish jobs directly");
     assert.equal(leadWrite.ok, false, "clients must not write automated leads, including admins");
     assert.equal(companyWrite.ok, false, "company owners must not self-activate or self-verify");
+    assert.equal(pendingPaymentEdit.ok, false, "pending-payment content must only change through the moderating callable");
   });
 
   await t.test("admin callable verifies and activates a company", async () => {

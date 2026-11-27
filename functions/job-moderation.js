@@ -1,7 +1,7 @@
 const { createHash } = require("node:crypto");
 const { isIP } = require("node:net");
 
-const RULE_VERSION = "1.0.0";
+const RULE_VERSION = "1.1.0";
 const DEFAULT_VALIDITY_DAYS = 30;
 const MAX_VALIDITY_DAYS = 90;
 const MAX_EXTERNAL_LINKS = 3;
@@ -398,8 +398,12 @@ function evaluateJobModeration(jobInput, context = {}) {
   if (ctx.emailVerified !== true) {
     addReview("email_unverified", "O email do anunciante ainda não foi confirmado.");
   }
-  if (ctx.profileRole === "candidate" && ctx.hasPublicationHistory !== true) {
-    addReview("candidate_without_history", "Conta de candidato sem histórico de publicações.");
+  if (ctx.profileRole === "candidate") {
+    if (ctx.hasPublicationHistory === true) {
+      addReview("candidate_requires_business_trust", "Histórico de publicação não substitui a verificação de um anunciante empresarial.");
+    } else {
+      addReview("candidate_without_history", "Conta de candidato sem histórico de publicações.");
+    }
   }
   if (ctx.profileRole === "company" && ctx.companyActive !== true) {
     addReview("company_not_active", "Empresa ainda não está marcada como ativa.");

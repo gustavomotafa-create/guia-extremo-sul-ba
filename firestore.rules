@@ -25,13 +25,8 @@ service cloud.firestore {
     }
 
     function validCompanyJobStatus() {
-      return (
-        resource.data.paymentStatus == 'aguardando_pagamento'
-        && request.resource.data.status == 'aguardando_pagamento'
-      ) || (
-        resource.data.paymentStatus in ['gratis', 'paga']
-        && request.resource.data.status in ['pendente', 'pausada']
-      );
+      return resource.data.paymentStatus in ['gratis', 'paga']
+        && request.resource.data.status in ['pendente', 'pausada'];
     }
 
     function companyCanUpdateJob() {

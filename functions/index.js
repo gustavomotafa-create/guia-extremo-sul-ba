@@ -114,38 +114,30 @@ function moderationQuotaStatus(decision, paymentStatus) {
   return decision === "approve" ? "aprovada" : "pendente";
 }
 
-function moderationStatusForPayment(job, duplicateExists = false, now = new Date()) {
-  const expiresAt = timestampDate(job.expiresAt);
-  if (
-    job.moderationStatus === "approve"
-    && /^[a-f0-9]{64}$/.test(String(job.fingerprint || ""))
-    && expiresAt
-    && expiresAt.getTime() > now.getTime()
-    && !duplicateExists
-  ) {
+function moderationStatusForPayment(job, moderation) {
+  const result = moderationFields(moderation);
+  if (moderation.decision === "block") {
+    const reason = moderation.reasons.find((item) => item.severity === "block");
     return {
-      status: job.status === "pausada" ? "pausada" : "aprovada",
-      moderationStatus: "approve",
+      ...result,
+      status: "rejeitada",
+      moderationStatus: "block",
+      rejectionReason: reason?.message || "A vaga não passou pela moderação automática.",
     };
   }
-  const flags = Array.isArray(job.moderationFlags) ? [...job.moderationFlags] : [];
-  const reasons = Array.isArray(job.moderationReasons) ? [...job.moderationReasons] : [];
-  const reasonCode = duplicateExists ? "active_duplicate" : "payment_recheck_required";
-  flags.push(reasonCode);
-  reasons.push({
-    code: reasonCode,
-    message: duplicateExists
-      ? "Foi encontrada uma vaga ativa duplicada antes da confirmação do pagamento."
-      : job.moderationStatus === "approve"
-        ? "A validade terminou ou os dados de moderação precisam ser reavaliados antes da confirmação do pagamento."
-        : "A vaga exige revisão excepcional antes da publicação.",
-    severity: "review",
-  });
+  if (moderation.decision === "review") {
+    return {
+      ...result,
+      status: "pendente",
+      moderationStatus: "review",
+      rejectionReason: "",
+    };
+  }
   return {
-    status: "pendente",
-    moderationStatus: "review",
-    moderationFlags: [...new Set(flags)],
-    moderationReasons: reasons,
+    ...result,
+    status: job.status === "pausada" ? "pausada" : "aprovada",
+    moderationStatus: "approve",
+    rejectionReason: "",
   };
 }
 
@@ -1026,6 +1018,15 @@ exports.mercadoPagoWebhook = onRequest({ region: REGION, secrets: [mercadoPagoAc
   const paymentRef = db.collection("payments").doc(localPaymentId);
   const usageRef = db.collection("companyDailyUsage").doc(`${companyId}_${dateKey}`);
   const jobRef = jobId ? db.collection("jobs").doc(jobId) : null;
+  let publisherAuthUser = null;
+  if (jobRef) {
+    try {
+      publisherAuthUser = await admin.auth().getUser(companyId);
+    } catch (error) {
+      if (error.code !== "auth/user-not-found") throw error;
+    }
+  }
+  const moderationNow = new Date().toISOString();
 
   await db.runTransaction(async (transaction) => {
     const [paymentSnap, usageSnap, jobSnapshot] = await Promise.all([
@@ -1034,9 +1035,63 @@ exports.mercadoPagoWebhook = onRequest({ region: REGION, secrets: [mercadoPagoAc
       jobRef ? transaction.get(jobRef) : Promise.resolve(null),
     ]);
     if (paymentSnap.exists && paymentSnap.data().status === "approved") return;
-    const duplicateSnapshot = jobSnapshot?.exists && jobSnapshot.data().fingerprint
-      ? await transaction.get(duplicateFingerprintQuery(jobSnapshot.data().fingerprint))
-      : null;
+    let paymentModeration = null;
+    if (
+      jobSnapshot?.exists
+      && jobSnapshot.data().paymentStatus === "aguardando_pagamento"
+      && ["aguardando_pagamento", "pendente"].includes(jobSnapshot.data().status)
+    ) {
+      const currentJob = jobSnapshot.data();
+      const ownerId = cleanString(currentJob.companyId);
+      const [profileSnapshot, companySnapshot, historySnapshot] = ownerId
+        ? await Promise.all([
+          transaction.get(db.collection("users").doc(ownerId)),
+          transaction.get(db.collection("companies").doc(ownerId)),
+          transaction.get(publisherHistoryQuery(ownerId)),
+        ])
+        : [{ exists: false }, { exists: false }, { docs: [] }];
+      const ownerMatchesPayment = ownerId === companyId;
+      const moderationAuth = {
+        token: {
+          email_verified: ownerMatchesPayment
+            && publisherAuthUser?.emailVerified === true
+            && publisherAuthUser.disabled !== true,
+        },
+      };
+      const role = ownerMatchesPayment && profileSnapshot.exists
+        ? profileSnapshot.data().role
+        : undefined;
+      const companyData = ownerMatchesPayment && companySnapshot.exists
+        ? companySnapshot.data()
+        : {};
+      const hasHistory = hasPublisherHistory(historySnapshot);
+      const preliminaryModeration = evaluateJobModeration(
+        currentJob,
+        moderationContextFor(
+          moderationAuth,
+          role,
+          companyData,
+          hasHistory,
+          false,
+          moderationNow,
+        ),
+      );
+      const duplicateSnapshot = await transaction.get(
+        duplicateFingerprintQuery(preliminaryModeration.fingerprint),
+      );
+      const moderation = evaluateJobModeration(
+        currentJob,
+        moderationContextFor(
+          moderationAuth,
+          role,
+          companyData,
+          hasHistory,
+          activeDuplicateExists(duplicateSnapshot, jobRef.id),
+          moderationNow,
+        ),
+      );
+      paymentModeration = moderationStatusForPayment(currentJob, moderation);
+    }
 
     transaction.set(paymentRef, {
       companyId,
@@ -1066,17 +1121,13 @@ exports.mercadoPagoWebhook = onRequest({ region: REGION, secrets: [mercadoPagoAc
     }
 
     if (jobRef) {
-      if (jobSnapshot?.exists) {
-        const moderation = moderationStatusForPayment(
-          jobSnapshot.data(),
-          activeDuplicateExists(duplicateSnapshot, jobRef.id),
-        );
+      if (jobSnapshot?.exists && paymentModeration) {
         transaction.update(jobRef, {
-          ...moderation,
+          ...paymentModeration,
           paymentStatus: "paga",
           paymentId: localPaymentId,
           paidAt: admin.firestore.FieldValue.serverTimestamp(),
-          ...(moderation.status === "aprovada"
+          ...(paymentModeration.status === "aprovada"
             ? { publishedAt: admin.firestore.FieldValue.serverTimestamp() }
             : { publishedAt: null }),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),

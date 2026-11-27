@@ -221,6 +221,13 @@ test("routes low-confidence advertiser trust signals to exceptional review", () 
       hasPublicationHistory: false,
     }),
   );
+  const returningCandidate = evaluateJobModeration(
+    validJob(),
+    trustedCompany({
+      profileRole: "candidate",
+      hasPublicationHistory: true,
+    }),
+  );
   const inactiveCompany = evaluateJobModeration(
     validJob(),
     trustedCompany({ companyActive: false }),
@@ -234,6 +241,8 @@ test("routes low-confidence advertiser trust signals to exceptional review", () 
   assert.ok(unverified.flags.includes("email_unverified"));
   assert.equal(newCandidate.decision, "review");
   assert.ok(newCandidate.flags.includes("candidate_without_history"));
+  assert.equal(returningCandidate.decision, "review");
+  assert.ok(returningCandidate.flags.includes("candidate_requires_business_trust"));
   assert.equal(inactiveCompany.decision, "review");
   assert.ok(inactiveCompany.flags.includes("company_not_active"));
   assert.equal(unknownAdvertiser.decision, "review");

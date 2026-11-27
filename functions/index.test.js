@@ -17,7 +17,7 @@ const adminAuth = {
   },
 };
 
-function createMockFirestore(seed = {}, { fetchImpl, secret = "" } = {}) {
+function createMockFirestore(seed = {}, { fetchImpl, secret = "", authUsers = {} } = {}) {
   const collections = new Map(
     Object.entries(seed).map(([name, documents]) => [name, new Map(Object.entries(documents))]),
   );
@@ -171,7 +171,7 @@ function createMockFirestore(seed = {}, { fetchImpl, secret = "" } = {}) {
     },
   };
 
-  return { db, firestore, collections, transactions, fetchImpl, secret };
+  return { db, firestore, collections, transactions, fetchImpl, secret, authUsers };
 }
 
 function loadHandlers(mock) {
@@ -186,6 +186,18 @@ function loadHandlers(mock) {
   const admin = {
     initializeApp() {},
     firestore: mock.firestore,
+    auth() {
+      return {
+        async getUser(uid) {
+          return mock.authUsers[uid] || {
+            uid,
+            email: "publisher@example.test",
+            emailVerified: true,
+            disabled: false,
+          };
+        },
+      };
+    },
   };
   const params = {
     defineSecret() {
@@ -593,7 +605,7 @@ test("automatically publishes a clean advertiser submission with moderation audi
   assert.equal(savedJob.status, "aprovada");
   assert.equal(savedJob.moderationStatus, "approve");
   assert.deepEqual(savedJob.moderationFlags, []);
-  assert.equal(savedJob.moderationVersion, "1.0.0");
+  assert.equal(savedJob.moderationVersion, "1.1.0");
   assert.match(savedJob.fingerprint, /^[a-f0-9]{64}$/);
   assert.ok(savedJob.expiresAt > new Date().toISOString());
   assert.ok(savedJob.moderatedAt);
@@ -651,7 +663,12 @@ test("routes unverified and untrusted advertiser submissions to exceptional revi
     auth: publisherAuth,
     data: publisherJob({ title: "Assistente de estoque" }),
   });
-  assert.equal(returningResult.status, "aprovada");
+  assert.equal(returningResult.status, "pendente");
+  assert.ok(
+    returningCandidate.db.documents("jobs")
+      .get(returningResult.jobId)
+      .moderationFlags.includes("candidate_requires_business_trust"),
+  );
 });
 
 test("admin-verified and activated company moves from review to automatic publication", async () => {
@@ -803,50 +820,113 @@ test("paid clean submissions publish after an approved payment webhook", async (
     },
   );
 
+  const usageAfterFirstWebhook = {
+    ...db.documents("companyDailyUsage").get(`${publisherId}_${dateKey}`),
+  };
+  await mercadoPagoWebhook(
+    { query: { "data.id": "provider-payment-1" }, body: {} },
+    { status() { return this; }, send() {} },
+  );
+
   const paidJob = db.documents("jobs").get(jobId);
+  const usageAfterReplay = db.documents("companyDailyUsage").get(`${publisherId}_${dateKey}`);
   assert.equal(responseStatus, 200);
   assert.equal(responseBody, "ok");
   assert.equal(paidJob.status, "aprovada");
   assert.equal(paidJob.paymentStatus, "paga");
   assert.equal(paidJob.moderationStatus, "approve");
   assert.ok(paidJob.publishedAt);
+  assert.deepEqual(usageAfterReplay, usageAfterFirstWebhook);
 });
 
-test("paid jobs that are expired or not clean remain pending for exception review", async (t) => {
-  for (const [name, moderationStatus, expiresAt, expectedFlag, duplicate] of [
-    ["expired", "approve", "2020-01-01T00:00:00.000Z", "payment_recheck_required", false],
-    ["already flagged", "review", "2099-12-31T23:59:59.000Z", "payment_recheck_required", false],
-    ["active duplicate", "approve", "2099-12-31T23:59:59.000Z", "active_duplicate", true],
+test("payment webhook re-evaluates expiry, current company trust, and active duplicates", async (t) => {
+  for (const scenario of [
+    {
+      name: "expired job is blocked from publication",
+      overrides: { expiresAt: "2020-01-01T00:00:00.000Z" },
+      company: { active: true, verifiedByAdmin: true },
+      expectedStatus: "rejeitada",
+      expectedModerationStatus: "block",
+      expectedFlag: "invalid_expiration",
+    },
+    {
+      name: "revoked company trust routes to review",
+      overrides: {},
+      company: { active: false, verifiedByAdmin: false },
+      expectedStatus: "pendente",
+      expectedModerationStatus: "review",
+      expectedFlag: "company_not_active",
+    },
+    {
+      name: "revoked email verification routes to review",
+      overrides: {},
+      company: { active: true, verifiedByAdmin: true },
+      authUser: { emailVerified: false, disabled: false },
+      expectedStatus: "pendente",
+      expectedModerationStatus: "review",
+      expectedFlag: "email_unverified",
+    },
+    {
+      name: "active duplicate routes to review",
+      overrides: {},
+      company: { active: true, verifiedByAdmin: true },
+      duplicate: true,
+      expectedStatus: "pendente",
+      expectedModerationStatus: "review",
+      expectedFlag: "active_duplicate",
+    },
   ]) {
-    await t.test(name, async () => {
+    await t.test(scenario.name, async () => {
+      const {
+        name,
+        overrides,
+        company,
+        authUser,
+        duplicate,
+        expectedStatus,
+        expectedModerationStatus,
+        expectedFlag,
+      } = scenario;
       const jobId = `job-${name.replace(/\s+/g, "-")}`;
       const paymentId = `payment-${name.replace(/\s+/g, "-")}`;
       const dateKey = bahiaDateKey();
+      const futureExpiry = new Date(Date.now() + (30 * 24 * 60 * 60 * 1000)).toISOString();
+      const jobContent = {
+        ...publisherJob(),
+        ...overrides,
+        companyId: publisherId,
+        status: "aguardando_pagamento",
+        paymentStatus: "aguardando_pagamento",
+        moderationStatus: "approve",
+        moderationFlags: [],
+        moderationReasons: [],
+        fingerprint: "a".repeat(64),
+        expiresAt: overrides.expiresAt || futureExpiry,
+      };
       const { mercadoPagoWebhook, db } = createCallableTest({
         jobs: {
-          [jobId]: {
-            companyId: publisherId,
-            status: "aguardando_pagamento",
-            paymentStatus: "aguardando_pagamento",
-            moderationStatus,
-            moderationFlags: [],
-            moderationReasons: [],
-            fingerprint: "a".repeat(64),
-            expiresAt,
-          },
+          [jobId]: jobContent,
           ...(duplicate ? {
             "active-copy": {
               companyId: "another-publisher",
               status: "aprovada",
-              fingerprint: "a".repeat(64),
+              fingerprint: evaluateJobModeration(jobContent, {
+                now: new Date().toISOString(),
+                profileRole: "company",
+                emailVerified: true,
+                companyActive: true,
+              }).fingerprint,
             },
           } : {}),
         },
+        users: { [publisherId]: { role: "company" } },
+        companies: { [publisherId]: company },
         payments: { [paymentId]: { status: "pending" } },
         companyDailyUsage: {
           [`${publisherId}_${dateKey}`]: { freeUsed: 2, paidCredits: 0, paidUsed: 0 },
         },
       }, {
+        authUsers: authUser ? { [publisherId]: authUser } : undefined,
         fetchImpl: async () => ({
           ok: true,
           async json() {
@@ -868,12 +948,65 @@ test("paid jobs that are expired or not clean remain pending for exception revie
       );
 
       const job = db.documents("jobs").get(jobId);
-      assert.equal(job.status, "pendente");
-      assert.equal(job.moderationStatus, "review");
+      assert.equal(job.status, expectedStatus);
+      assert.equal(job.moderationStatus, expectedModerationStatus);
       assert.ok(job.moderationFlags.includes(expectedFlag));
       assert.equal(job.paymentStatus, "paga");
     });
   }
+});
+
+test("payment webhook blocks content changed to a candidate fee after initial moderation", async () => {
+  const jobId = "tampered-paid-job";
+  const paymentId = "tampered-payment";
+  const dateKey = bahiaDateKey();
+  const job = {
+    ...publisherJob({
+      description: "Pague uma taxa de inscrição para participar do processo seletivo.",
+    }),
+    companyId: publisherId,
+    status: "aguardando_pagamento",
+    paymentStatus: "aguardando_pagamento",
+    moderationStatus: "approve",
+    moderationFlags: [],
+    moderationReasons: [],
+    fingerprint: "a".repeat(64),
+    expiresAt: "2099-12-31T23:59:59.000Z",
+  };
+  const { mercadoPagoWebhook, db } = createCallableTest({
+    users: { [publisherId]: { role: "company" } },
+    companies: { [publisherId]: { active: true, verifiedByAdmin: true } },
+    jobs: { [jobId]: job },
+    payments: { [paymentId]: { status: "pending" } },
+    companyDailyUsage: {
+      [`${publisherId}_${dateKey}`]: { freeUsed: 2, paidCredits: 0, paidUsed: 0 },
+    },
+  }, {
+    fetchImpl: async () => ({
+      ok: true,
+      async json() {
+        return {
+          id: "provider-tampered-payment",
+          status: "approved",
+          external_reference: paymentId,
+          transaction_amount: 5,
+          metadata: { company_id: publisherId, date_key: dateKey, job_id: jobId, credits: 2 },
+        };
+      },
+    }),
+    secret: "simulated-access-token",
+  });
+
+  await mercadoPagoWebhook(
+    { query: { "data.id": "provider-tampered-payment" }, body: {} },
+    { status() { return this; }, send() {} },
+  );
+
+  const saved = db.documents("jobs").get(jobId);
+  assert.equal(saved.status, "rejeitada");
+  assert.equal(saved.moderationStatus, "block");
+  assert.ok(saved.moderationFlags.includes("candidate_payment_request"));
+  assert.equal(saved.publishedAt, null);
 });
 
 test("re-evaluates company edits and auto-publishes only clean revisions", async () => {
