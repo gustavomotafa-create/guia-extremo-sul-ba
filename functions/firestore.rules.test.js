@@ -6,7 +6,7 @@ const {
   assertSucceeds,
   initializeTestEnvironment,
 } = require("@firebase/rules-unit-testing");
-const { deleteField, doc, setDoc, updateDoc } = require("firebase/firestore");
+const { deleteField, doc, getDoc, setDoc, updateDoc } = require("firebase/firestore");
 
 const firestoreEmulatorHost = process.env.FIRESTORE_EMULATOR_HOST;
 const skipReason = firestoreEmulatorHost
@@ -56,10 +56,14 @@ function userContext(uid, email = `${uid}@example.com`, claims = {}) {
   }).firestore();
 }
 
-async function seedUser(uid, profile) {
+async function seedDocument(collectionName, documentId, data) {
   await testEnvironment.withSecurityRulesDisabled(async (context) => {
-    await setDoc(doc(context.firestore(), "users", uid), profile);
+    await setDoc(doc(context.firestore(), collectionName, documentId), data);
   });
+}
+
+async function seedUser(uid, userProfile) {
+  await seedDocument("users", uid, userProfile);
 }
 
 function profile(uid, role = "candidate", extra = {}) {
@@ -217,5 +221,147 @@ test("a user with the admin custom claim can update another user's profile", { s
   await assertSucceeds(updateDoc(
     doc(userContext(adminUid, `${adminUid}@example.com`, { admin: true }), "users", otherUid),
     { name: "Updated by custom-claim admin" },
+  ));
+});
+
+test("company owner can create their own company without verification fields", { skip: skipReason }, async () => {
+  const uid = "company-create-unverified";
+
+  await assertSucceeds(setDoc(
+    doc(userContext(uid), "companies", uid),
+    { ownerUid: uid, name: "Test Company" },
+  ));
+});
+
+test("company owner cannot create their own company with active true", { skip: skipReason }, async () => {
+  const uid = "company-create-active";
+
+  await assertFails(setDoc(
+    doc(userContext(uid), "companies", uid),
+    { ownerUid: uid, name: "Test Company", active: true },
+  ));
+});
+
+test("company owner cannot create their own company with verifiedByAdmin true", { skip: skipReason }, async () => {
+  const uid = "company-create-verified";
+
+  await assertFails(setDoc(
+    doc(userContext(uid), "companies", uid),
+    { ownerUid: uid, name: "Test Company", verifiedByAdmin: true },
+  ));
+});
+
+test("company owner can create their own company with active false", { skip: skipReason }, async () => {
+  const uid = "company-create-inactive";
+
+  await assertSucceeds(setDoc(
+    doc(userContext(uid), "companies", uid),
+    { ownerUid: uid, name: "Test Company", active: false },
+  ));
+});
+
+test("company owner cannot add, change, or remove active and verifiedByAdmin", { skip: skipReason }, async (t) => {
+  const cases = [
+    { name: "add active", initial: {}, update: { active: true } },
+    { name: "change active", initial: { active: false }, update: { active: true } },
+    { name: "remove active", initial: { active: false }, update: { active: deleteField() } },
+    { name: "add verifiedByAdmin", initial: {}, update: { verifiedByAdmin: true } },
+    { name: "change verifiedByAdmin", initial: { verifiedByAdmin: false }, update: { verifiedByAdmin: true } },
+    { name: "remove verifiedByAdmin", initial: { verifiedByAdmin: false }, update: { verifiedByAdmin: deleteField() } },
+  ];
+
+  for (const [index, scenario] of cases.entries()) {
+    await t.test(scenario.name, async () => {
+      const uid = `company-protected-field-${index}`;
+      await seedDocument("companies", uid, {
+        ownerUid: uid,
+        name: "Test Company",
+        ...scenario.initial,
+      });
+
+      await assertFails(updateDoc(
+        doc(userContext(uid), "companies", uid),
+        scenario.update,
+      ));
+    });
+  }
+});
+
+test("company owner can edit a common field on their own company", { skip: skipReason }, async () => {
+  const uid = "company-edit-common";
+  await seedDocument("companies", uid, { ownerUid: uid, name: "Old Company Name" });
+
+  await assertSucceeds(updateDoc(
+    doc(userContext(uid), "companies", uid),
+    { name: "Updated Company Name" },
+  ));
+});
+
+test("another user cannot edit a company's document", { skip: skipReason }, async () => {
+  const ownerUid = "company-owner";
+  await seedDocument("companies", ownerUid, { ownerUid, name: "Test Company" });
+
+  await assertFails(updateDoc(
+    doc(userContext("other-company-user"), "companies", ownerUid),
+    { name: "Unauthorized Company Name" },
+  ));
+});
+
+test("admin can change a company's active field", { skip: skipReason }, async () => {
+  const companyUid = "company-admin-active";
+  await seedDocument("companies", companyUid, {
+    ownerUid: companyUid,
+    name: "Test Company",
+    active: false,
+  });
+
+  await assertSucceeds(updateDoc(
+    doc(userContext("company-admin", "company-admin@example.com", { admin: true }), "companies", companyUid),
+    { active: true },
+  ));
+});
+
+test("admin can read an automated job lead", { skip: skipReason }, async () => {
+  const leadId = "admin-readable-lead";
+  await seedDocument("automatedJobLeads", leadId, { title: "Test Lead" });
+
+  await assertSucceeds(getDoc(
+    doc(userContext("lead-admin", "lead-admin@example.com", { admin: true }), "automatedJobLeads", leadId),
+  ));
+});
+
+test("a regular user cannot read an automated job lead", { skip: skipReason }, async () => {
+  const leadId = "user-private-lead";
+  await seedDocument("automatedJobLeads", leadId, { title: "Test Lead" });
+
+  await assertFails(getDoc(
+    doc(userContext("regular-lead-user"), "automatedJobLeads", leadId),
+  ));
+});
+
+test("an anonymous user cannot read an automated job lead", { skip: skipReason }, async () => {
+  const leadId = "anonymous-private-lead";
+  await seedDocument("automatedJobLeads", leadId, { title: "Test Lead" });
+
+  await assertFails(getDoc(
+    doc(testEnvironment.unauthenticatedContext().firestore(), "automatedJobLeads", leadId),
+  ));
+});
+
+test("an admin cannot write an automated job lead", { skip: skipReason }, async () => {
+  const leadId = "admin-cannot-write-lead";
+
+  await assertFails(setDoc(
+    doc(userContext("lead-admin-writer", "lead-admin-writer@example.com", { admin: true }), "automatedJobLeads", leadId),
+    { title: "Unauthorized Lead" },
+  ));
+});
+
+test("a regular user cannot write an automated job lead", { skip: skipReason }, async () => {
+  const leadId = "user-cannot-write-lead";
+
+  await assertFails(setDoc(
+    doc(userContext("regular-lead-writer"), "automatedJobLeads", leadId),
+    { title: "Unauthorized Lead" },
   ));
 });
