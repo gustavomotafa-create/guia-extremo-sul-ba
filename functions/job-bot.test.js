@@ -1307,6 +1307,76 @@ test("main activates --persist with injected credentials and reports completed w
   assert.equal(JSON.parse(stdout).firestoreWrites, 1);
 });
 
+test("main persists built-in Jobicy when explicitly requested without extra feeds", async () => {
+  const job = normalizedPersistenceJob();
+  const repository = mockLeadRepository();
+  const simulatedCredential = '{"simulated":true}';
+  let persistenceCalls = 0;
+  const report = await main(["--persist"], {
+    env: { FIREBASE_SERVICE_ACCOUNT_JSON: simulatedCredential },
+    runJobSearch: async ({ sources }) => {
+      assert.deepEqual(
+        sources.filter(({ authorized }) => authorized).map(({ id }) => id),
+        [JOBICY_BRAZIL_SOURCE.id],
+      );
+      return { report: reportFixture(), jobs: [job] };
+    },
+    persistJobs: async (jobs, credential, { onProgress }) => {
+      persistenceCalls += 1;
+      assert.equal(credential, simulatedCredential);
+      return persistJobsWithRepository(jobs, repository, {
+        now: new Date("2026-01-10T00:00:00.000Z"),
+        onProgress,
+      });
+    },
+    writeStdout: () => {},
+    setExitCode: (code) => { assert.fail(`Unexpected CLI exit code ${code}`); },
+  });
+
+  assert.equal(persistenceCalls, 1);
+  assert.equal(report.persistence.created, 1);
+  assert.equal(report.firestoreWrites, 1);
+  assert.equal(repository.documents.size, 1);
+});
+
+test("main stays in dry-run by default without calling persistence", async () => {
+  let persistenceCalls = 0;
+  const report = await main([], {
+    env: {},
+    runJobSearch: async () => ({ report: reportFixture(), jobs: [] }),
+    persistJobs: async () => {
+      persistenceCalls += 1;
+      assert.fail("Dry-run must not call persistence.");
+    },
+    writeStdout: () => {},
+  });
+
+  assert.equal(persistenceCalls, 0);
+  assert.equal(report.firestoreWrites, 0);
+  assert.equal(report.persistence, undefined);
+});
+
+test("main reports missing persistence credentials without writing", async () => {
+  const exitCodes = [];
+  const report = await main(["--persist"], {
+    env: {},
+    runJobSearch: async () => ({
+      report: reportFixture(),
+      jobs: [normalizedPersistenceJob()],
+    }),
+    writeStdout: () => {},
+    setExitCode: (code) => exitCodes.push(code),
+  });
+
+  assert.equal(report.status, "partial");
+  assert.equal(report.firestoreWrites, 0);
+  assert.equal(report.persistence.writes, 0);
+  assert.equal(report.errors.length, 1);
+  assert.equal(report.errors[0].stage, "firestore");
+  assert.match(report.errors[0].message, /requires FIREBASE_SERVICE_ACCOUNT_JSON/);
+  assert.deepEqual(exitCodes, [1]);
+});
+
 test("main persists a valid configured feed once per canonical lead across repeated runs", async () => {
   const feedUrl = "https://authorized.example.test/api/jobs";
   const configuredSource = registeredTestSource({
@@ -1380,30 +1450,9 @@ test("main persists a valid configured feed once per canonical lead across repea
   assert.equal(persistenceCalls, 2);
 });
 
-test("main skips --persist without configured authorized JSON feeds and fails closed on malformed JSON", async () => {
+test("main fails closed on malformed configured source JSON", async () => {
   const job = normalizedPersistenceJob();
   let persistenceCalls = 0;
-
-  for (const configuredSources of [undefined, ""]) {
-    const env = { FIREBASE_SERVICE_ACCOUNT_JSON: '{"simulated":true}' };
-    if (configuredSources !== undefined) env.JOB_SEARCH_SOURCES_JSON = configuredSources;
-    const report = await main(["--persist"], {
-      env,
-      runJobSearch: async () => ({ report: reportFixture(), jobs: [job] }),
-      persistJobs: async () => {
-        persistenceCalls += 1;
-        return persistJobsWithRepository([job], mockLeadRepository());
-      },
-      writeStdout: () => {},
-      setExitCode: (code) => { assert.fail(`Unexpected CLI exit code ${code}`); },
-    });
-
-    assert.equal(report.persistence.skipped, true);
-    assert.equal(report.firestoreWrites, 0);
-    assert.match(report.persistence.reason, /não contém fontes JSON autorizadas/);
-    assert.ok(report.warnings.some(({ message }) => /nenhuma gravação/.test(message)));
-  }
-
   let searches = 0;
   await assert.rejects(
     main(["--persist"], {
