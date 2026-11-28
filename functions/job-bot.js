@@ -1767,18 +1767,7 @@ async function main(argv = process.argv.slice(2), dependencies = {}) {
   ];
   const { report, jobs } = await runJobSearchImpl({ sources, sourceWarnings });
 
-  if (persist && configuredSources.length === 0) {
-    report.persistence = {
-      ...createPersistenceProgress(),
-      skipped: true,
-      reason: "JOB_SEARCH_SOURCES_JSON não contém fontes JSON autorizadas e habilitadas.",
-    };
-    report.firestoreWrites = 0;
-    report.warnings.push({
-      sourceId: null,
-      message: "A opção --persist foi ignorada; nenhuma gravação foi feita no Firestore.",
-    });
-  } else if (persist) {
+  if (persist) {
     report.persistence = createPersistenceProgress();
     const updatePersistenceProgress = (progress) => {
       report.persistence = copyPersistenceProgress(progress);
